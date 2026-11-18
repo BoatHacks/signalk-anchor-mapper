@@ -220,7 +220,7 @@ used. Computed on demand, so the clustering can change without rewriting data.
 | `navigation.anchor.position`, `navigation.anchor.maxRadius` | own vessel (anchor alarm plugin or user) | overlap alerts | no overlap alerts |
 | `navigation.position` | own vessel | display only | — |
 | `environment.wind.directionTrue`, or `angleTrueGround`/`angleTrueWater` + own heading | own vessel | wind hint | no wind hint (`windHint: null`) |
-| Tracks plugin API | optional | track lines in the webapp | no track lines |
+| Tracks plugin API | optional | seeding tracks after a restart; track lines in the webapp | blind for up to the minimum dwell after a restart; no track lines |
 
 Heading and SOG are paired with a position only if they are within 60 s of it.
 
@@ -278,8 +278,15 @@ Constraint: works on the boat without internet for everything except map tiles.
 
 - (Post-1.0) **The atlas persists** on disk in the plugin's data directory and must
   survive restarts and plugin upgrades.
-- Tracks and own-vessel wind are in memory today; whether they also persist across
-  restarts is still **(open, §13)**.
+- **Tracks are seeded on start** from the SignalK tracks plugin when it is installed:
+  the plugin pulls the recent tracks of nearby vessels (up to the history window),
+  so estimates and alerts resume within one analysis cycle instead of after the
+  minimum dwell. The plugin keeps no track store of its own.
+- Seeded fixes carry position only. Heading-ray estimates need fresh heading fixes
+  (≥ 30) after a restart, so a class A ship may show as area or ring fit at first.
+  Own-vessel wind is not seeded; the wind hint resumes as wind data arrives.
+- Without the tracks plugin, a restart means no estimates and no alerts for up to
+  the minimum dwell time. The README and plugin status must say so.
 
 ## 9. Configuration
 
@@ -318,6 +325,8 @@ radius and count.
 
 ### 10.2 Needed for 1.0.0
 - Overlap and drag alerts (§2.7, decided 2026-11-18).
+- Seed tracks from the tracks plugin on start (§8, decided 2026-11-18).
+- Published on npm and the SignalK plugin registry (§1.1).
 - Further items **(open, §13)**.
 
 ### 10.3 Post-1.0 / deferred
@@ -356,6 +365,10 @@ radius and count.
   strong untagged estimates by default, and drag is a separate, louder alert than
   overlap. Own anchor comes from the standard SignalK paths, so the plugin works
   next to any anchor alarm rather than replacing one.
+- **Restart recovery via the tracks plugin (decided 2026-11-18)**, chosen over a
+  snapshot of the plugin's own buffer. It reuses data most servers already record
+  and adds no storage to this plugin. Cost: no recovery for users without the
+  tracks plugin, and no headings in seeded data.
 - **Atlas wanted, after 1.0.0 (decided 2026-11-18).** First put in 1.0.0, then moved
   to post-1.0 the same day. Known risk: detection errors become a permanent map. Mitigation: records keep their tags
   and quality and the view filters, so a bad record can be hidden or purged later.
