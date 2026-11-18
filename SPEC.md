@@ -16,6 +16,10 @@ The point is situational awareness at anchor: when you arrive in an anchorage, o
 when someone anchors near you, you want to know where their anchor is and how much
 room they swing through, which their AIS position alone does not tell you.
 
+When the own vessel is at anchor too, the plugin relates the others to it: it warns
+when another boat's swing circle overlaps the own one, and when another boat appears
+to be dragging its anchor.
+
 After 1.0.0 it is planned to also build an **anchoring atlas**: every anchoring it has observed is
 kept, so the user can see where boats anchor in a bay, how much room they take, and
 when, including in places they are visiting for the first time after having been in
@@ -60,6 +64,9 @@ or without the tracks plugin, and small hardware such as a Raspberry Pi.
 | **Anchoring record** | One finished (or still ongoing) anchoring of one vessel, kept in the atlas (§4.2). |
 | **Atlas** | The stored collection of anchoring records, on disk. |
 | **Spot** | A cluster of anchoring records close together, derived from the atlas when it is viewed, not stored. |
+| **Own anchor** | The own vessel's `navigation.anchor.position` and `maxRadius`, as set by an anchor alarm plugin or the user. |
+| **Overlap** | Another vessel's swing circle (or occupied area) intersects the own swing circle, within a safety margin. |
+| **Dragging** | A vessel with a placed anchor is seen persistently outside its estimated swing circle. |
 | **Tag** | A flag on an estimate that names a known way it may be wrong (§2.6). |
 
 ## 2. Domain Rules
@@ -116,6 +123,23 @@ moves an implied anchor as far as the swing circle itself. So wind is used only:
 
 There are no harbor or marina polygons; berthed boats fall out as "still" or tagged.
 
+### 2.7 Alerts about other vessels
+
+- **Overlap** is only checked while the own anchor is set. Two placed anchors overlap
+  when the distance between them is less than the sum of both swing radii plus a
+  margin (default 10 m). For an area estimate, the ellipse's semi-major axis around
+  its centre stands in for the circle; that over-warns rather than under-warns.
+- **Dragging** is only checked for `anchor` estimates of quality `strong` without the
+  `possibly-moored` or `possible-mooring-buoy` tags. A vessel counts as dragging when
+  its last N fixes (default 3, about 90 s) are all more than its swing radius plus a
+  margin (default 20 m, or 25 % of the radius if larger) from the anchor, while its
+  estimate was published in the previous cycle. It is checked on every fix, not every
+  analysis cycle, because a drag matters within minutes.
+- Doubtful estimates do not raise alerts by default; better a missed warning about a
+  shaky estimate than nightly false alarms that teach people to turn alerts off.
+- Every alert clears itself when its condition stops holding, with hysteresis (half
+  the margin) so it does not flap.
+
 ## 3. Estimate Lifecycle
 
 Per vessel:
@@ -142,6 +166,13 @@ Per vessel:
   ongoing estimate too, so a restart loses at most one analysis cycle of atlas data.
 - Tracks older than the history window (default 12 h) drop off; a vessel with no
   fixes left disappears.
+
+### 3.1 Alert lifecycle
+
+Per other vessel and alert kind (`overlap`, `dragging`):
+`normal → active → normal`. Active raises a SignalK notification; returning to
+normal clears it. A dragging vessel's estimate is cleared when its episode ends, and
+the dragging alert clears with it after a hold time (default 10 min) so it is seen.
 
 ## 4. Data Model
 
@@ -186,6 +217,8 @@ used. Computed on demand, so the clustering can change without rewriting data.
 | `navigation.headingTrue` | other vessels, mostly class A | heading rays, wind hint | ring fit or area only |
 | `navigation.speedOverGround` | other vessels | wind hint gating | fixes treated as "no SOG" (eligible) |
 | `design.aisShipType` | other vessels | wind hint eligibility | no wind hint |
+| `navigation.anchor.position`, `navigation.anchor.maxRadius` | own vessel (anchor alarm plugin or user) | overlap alerts | no overlap alerts |
+| `navigation.position` | own vessel | display only | — |
 | `environment.wind.directionTrue`, or `angleTrueGround`/`angleTrueWater` + own heading | own vessel | wind hint | no wind hint (`windHint: null`) |
 | Tracks plugin API | optional | track lines in the webapp | no track lines |
 
@@ -202,6 +235,14 @@ On each anchored vessel's own context (`vessels.urn:mrn:imo:mmsi:<mmsi>`):
   when cleared.
 
 Published once per analysis cycle (default 5 min).
+
+Notifications on the own vessel context:
+- `notifications.anchorMapper.overlap.<mmsi>` — state `warn`, method `visual`
+- `notifications.anchorMapper.dragging.<mmsi>` — state `alarm`, method `visual` and
+  `sound`
+
+The message names the vessel (AIS name, else MMSI) and the distance. Set to state
+`normal` when cleared.
 
 ### 6.2 Resource provider
 Read-only resource type `anchored-vessels`, at
@@ -255,6 +296,12 @@ User-tunable (admin UI):
 | Wind source | `self` (or `none`) |
 | Wind hint weight | 0.1 (0 = off) |
 | Wind hint max SOG | 0.5 kn |
+| Overlap alerts | on |
+| Overlap margin | 10 m |
+| Drag alerts | on |
+| Drag margin | 20 m or 25 % of the radius |
+| Drag fixes needed | 3 |
+| Alert on doubtful estimates | off |
 
 Fixed (detector constants, validated and not exposed): radius gate, gap limit, spike
 filter, still threshold, arc and ring-ratio gates, heading-ray thresholds, repeat-use
@@ -270,7 +317,8 @@ radius and count.
 - Offline validation against recorded AIS.
 
 ### 10.2 Needed for 1.0.0
-- To be decided **(open, §13)**.
+- Overlap and drag alerts (§2.7, decided 2026-11-18).
+- Further items **(open, §13)**.
 
 ### 10.3 Post-1.0 / deferred
 - **Anchoring atlas** (§4.2, §4.3, §6.3): recording, persistence, read API, atlas
@@ -303,6 +351,11 @@ radius and count.
 - **No runtime dependencies**, plain Node, buildless webapp: runs on a Pi, easy to audit.
 - **Written for any SignalK user (decided 2026-11-18).** The plugin is published,
   not a personal tool, so nothing may assume the author's boat, region or data.
+- **Overlap and drag alerts in 1.0.0 (decided 2026-11-18)**, chosen over staying a
+  pure observer. Alerts depend on detection being right, so they are restricted to
+  strong untagged estimates by default, and drag is a separate, louder alert than
+  overlap. Own anchor comes from the standard SignalK paths, so the plugin works
+  next to any anchor alarm rather than replacing one.
 - **Atlas wanted, after 1.0.0 (decided 2026-11-18).** First put in 1.0.0, then moved
   to post-1.0 the same day. Known risk: detection errors become a permanent map. Mitigation: records keep their tags
   and quality and the view filters, so a bad record can be hidden or purged later.
@@ -316,8 +369,7 @@ radius and count.
 
 ## 13. Open Questions
 
-1. Should anything relate others' swing circles to the own vessel (overlap, dragging)?
-2. What must 1.0.0 include? Candidates: restart persistence / seeding from history,
+1. What must 1.0.0 include? Candidates: restart persistence / seeding from history,
    gridded wind source, drag detection, npm publish.
-3. Live validation: the detector has only been run offline; how much live testing
+2. Live validation: the detector has only been run offline; how much live testing
    counts as enough for 1.0.0?
