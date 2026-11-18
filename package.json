@@ -1,0 +1,41 @@
+{
+  "name": "signalk-anchor-mapper",
+  "version": "0.1.0",
+  "description": "SignalK Server plugin that estimates where other vessels are anchored (position and swing radius) from their AIS tracks and publishes it",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "src",
+    "public"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "signalk-node-server-plugin",
+    "signalk-webapp",
+    "signalk-category-utility",
+    "signalk",
+    "ais",
+    "anchor",
+    "anchorage"
+  ],
+  "author": "Tobias Rosenstock",
+  "license": "MIT",
+  "signalk": {
+    "displayName": "Anchor Mapper"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BoatHacks/signalk-anchor-mapper.git"
+  },
+  "bugs": {
+    "url": "https://github.com/BoatHacks/signalk-anchor-mapper/issues"
+  },
+  "homepage": "https://github.com/BoatHacks/signalk-anchor-mapper#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
