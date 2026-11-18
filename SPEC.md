@@ -168,7 +168,9 @@ optional `windFrom` (rad true, added for wind-hint vessels).
 
 The estimate's final state, plus `end` time, vessel MMSI, AIS ship type and length
 when known. Kept whatever its tags and quality, so the atlas view can filter rather
-than the recorder deciding. **(open: vessel identity and retention, §13)**
+than the recorder deciding. Records keep the vessel's MMSI with no expiry, so the
+atlas can answer "who anchored here" and show one vessel's history. The atlas stays
+on the user's own server; the plugin never sends it anywhere.
 
 ### 4.3 Spot (derived)
 
@@ -301,14 +303,18 @@ radius and count.
 - **Atlas in 1.0.0 (decided 2026-11-18).** Chosen over "live only" despite the risk
   that detection errors become a permanent map. Mitigation: records keep their tags
   and quality and the view filters, so a bad record can be hidden or purged later.
+- **Atlas keeps MMSI forever (decided 2026-11-18).** Considered anonymising after
+  30 days or never storing MMSI; chosen to keep full per-vessel history. The atlas
+  is therefore a long-term log of identifiable vessels' whereabouts, which the README
+  must state plainly so installers can decide (data protection rules may apply to
+  them). The data stays local and is never shared by the plugin.
 - **Spots are derived, not stored**, so the clustering rule can change freely.
 - **Single-pass dense-core trim.** Iterating collapses a ring onto its densest arc.
 
 ## 13. Open Questions
 
-1. Atlas records: keep the vessel's MMSI, or anonymise? How long to keep records?
-2. Should anything relate others' swing circles to the own vessel (overlap, dragging)?
-3. What must 1.0.0 include? Candidates: restart persistence / seeding from history,
+1. Should anything relate others' swing circles to the own vessel (overlap, dragging)?
+2. What must 1.0.0 include? Candidates: restart persistence / seeding from history,
    gridded wind source, drag detection, npm publish.
-4. Live validation: the detector has only been run offline; how much live testing
+3. Live validation: the detector has only been run offline; how much live testing
    counts as enough for 1.0.0?
