@@ -27,8 +27,7 @@ AIS range of them before.
 
 **Audience:** any SignalK user. 1.0.0 is published on npm and the SignalK plugin
 registry, so defaults, documentation and failure modes must work for setups unlike
-the author's: other regions and AIS densities, servers without own wind instruments
-or without the tracks plugin, and small hardware such as a Raspberry Pi.
+the author's: other regions and AIS densities, servers without the tracks plugin, and small hardware such as a Raspberry Pi.
 
 ### 1.2 Background
 
@@ -48,7 +47,7 @@ or without the tracks plugin, and small hardware such as a Raspberry Pi.
 
 | Term | Meaning |
 |---|---|
-| **Fix** | One position report of a vessel, with time and, when known, true heading and SOG. |
+| **Fix** | One position report of a vessel, with time and, when known, true heading. |
 | **Track** | The recent fixes of one vessel, thinned to at most one per 30 s. |
 | **Stationary episode** | A maximal run of fixes that stays within the radius gate (250 m) of its running centroid with no reporting gap over 30 min. |
 | **Dwell** | Duration of an episode. An episode only counts once it reaches the minimum dwell (default 2 h). |
@@ -60,7 +59,6 @@ or without the tracks plugin, and small hardware such as a Raspberry Pi.
 | **Area estimate** | A result where the vessel clearly stays and swings but no anchor point can be placed; only the occupied area (an ellipse) is given (`kind: area`). |
 | **Heading ray** | The line from a fix along the vessel's true heading. Bow points at anchor, so rays meet at the anchor. |
 | **Ring fit** | A circle fitted to the track. Trusted only if the track covers a real ring (§2). |
-| **Wind hint** | A low-weight bearing towards the likely anchor side, derived from the wind (§2.5). |
 | **Anchoring record** | One finished (or still ongoing) anchoring of one vessel, kept in the atlas (§4.2). |
 | **Atlas** | The stored collection of anchoring records, on disk. |
 | **Spot** | A cluster of anchoring records close together, derived from the atlas when it is viewed, not stored. |
@@ -100,25 +98,18 @@ Understating a swing radius is worse than reporting none: a skipper would anchor
 inside someone's circle. When the evidence does not place the anchor, the plugin
 says so (area estimate) rather than guessing.
 
-### 2.5 Wind is a hint, never a locator
-A yacht at anchor points roughly into the wind, but in testing heading differed from
-harbor wind by a median 65 to 68° and from gridded model wind by 35 to 40°. That
-moves an implied anchor as far as the swing circle itself. So wind is used only:
-- for ship types 36 and 37, at reported SOG ≤ 0.5 kn or no SOG;
-- as a bearing (`anchorBearingDegrees`) on area estimates, weighted 0.1 per wind
-  sample against 1 per heading;
-- as an agreement check on placed anchors (`anchorAgreement`, tag `wind-disagrees`).
-- only from the last 6 h of a stay, only when the wind was steady over that window
-  (steadiness ≥ 0.5), and never for `possibly-moored` swings, where any bearing is
-  GPS noise at a berth. On recorded data the wind-only bearing was still off by a
-  median 56° (33° in steady wind), so it means "probably this side", nothing more.
+### 2.5 Wind is not used
+A yacht at anchor points roughly into the wind, so wind looks like a way to place
+or orient anchors for boats without heading. It is not reliable enough: heading
+differed from harbor wind by a median 65 to 68° and from gridded model wind by 35
+to 40°, and even a gated bearing-only hint was off by a median 56° on recorded
+data. The plugin uses no wind data (see §12 and docs/VALIDATION.md).
 
 ### 2.6 Doubt is flagged, not hidden
 | Tag | Rule |
 |---|---|
 | `possibly-moored` | Swing radius under 15 m. Indistinguishable from a berth or mooring ball. |
 | `possible-mooring-buoy` | ≥ 2 other vessels have had long stays within 100 m of this spot. |
-| `wind-disagrees` | Mean cosine between boat→anchor and towards-the-wind is below 0. |
 | quality `weak` | Plausible but noisy ring, or heading rays missing by > 15 % of the distance. |
 
 There are no harbor or marina polygons; berthed boats fall out as "still" or tagged.
@@ -176,8 +167,7 @@ the dragging alert clears with it after a hold time (default 10 min) so it is se
 
 ## 4. Data Model
 
-**Fix**: `t` (s), `lat`, `lon`, optional `heading` (rad true), optional `sog` (m/s),
-optional `windFrom` (rad true, added for wind-hint vessels).
+**Fix**: `t` (s), `lat`, `lon`, optional `heading` (rad true).
 
 **Estimate** (one per anchored vessel, keyed by vessel context / MMSI):
 
@@ -193,7 +183,6 @@ optional `windFrom` (rad true, added for wind-hint vessels).
 | `dwellHours` | number | number | |
 | `arcDegrees` | number or null | null | ring coverage |
 | `area` | null | `{ center, semiMajorM, semiMinorM, bearingDeg }` | |
-| `windHint` | object or null | object or null | §2.5 |
 
 ### 4.2 Anchoring record (atlas, post-1.0)
 
@@ -214,15 +203,12 @@ used. Computed on demand, so the clustering can change without rewriting data.
 | Input | From | Used for | If missing |
 |---|---|---|---|
 | `navigation.position` | every other vessel (AIS) | everything | vessel not tracked |
-| `navigation.headingTrue` | other vessels, mostly class A | heading rays, wind hint | ring fit or area only |
-| `navigation.speedOverGround` | other vessels | wind hint gating | fixes treated as "no SOG" (eligible) |
-| `design.aisShipType` | other vessels | wind hint eligibility | no wind hint |
+| `navigation.headingTrue` | other vessels, mostly class A | heading rays | ring fit or area only |
 | `navigation.anchor.position`, `navigation.anchor.maxRadius` | own vessel (anchor alarm plugin or user) | overlap alerts | no overlap alerts |
 | `navigation.position` | own vessel | display only | — |
-| `environment.wind.directionTrue`, or `angleTrueGround`/`angleTrueWater` + own heading | own vessel | wind hint | no wind hint (`windHint: null`) |
 | Tracks plugin API | optional | seeding tracks after a restart; track lines in the webapp | blind for up to the minimum dwell after a restart; no track lines |
 
-Heading and SOG are paired with a position only if they are within 60 s of it.
+Heading is paired with a position only if it is within 60 s of it.
 
 ## 6. API Specification
 
@@ -248,7 +234,7 @@ The message names the vessel (AIS name, else MMSI) and the distance. Set to stat
 Read-only resource type `anchored-vessels`, at
 `/signalk/v2/api/resources/anchored-vessels[/<mmsi>]`. Each resource is a GeoJSON
 Feature: a Point at the anchor (or area centre), with properties `context`, `mmsi`,
-`name`, `kind`, `method`, `radiusMeters`, `area`, `windHint`, `quality`, `tags`,
+`name`, `kind`, `method`, `radiusMeters`, `area`, `quality`, `tags`,
 `since`, `dwellHours`. Writes are refused. Resource providers are chosen over plugin
 routes because they are readable under the server's read-only access setting.
 
@@ -284,7 +270,6 @@ Constraint: works on the boat without internet for everything except map tiles.
   minimum dwell. The plugin keeps no track store of its own.
 - Seeded fixes carry position only. Heading-ray estimates need fresh heading fixes
   (≥ 30) after a restart, so a class A ship may show as area or ring fit at first.
-  Own-vessel wind is not seeded; the wind hint resumes as wind data arrives.
 - Without the tracks plugin, a restart means no estimates and no alerts for up to
   the minimum dwell time. The README and plugin status must say so.
 
@@ -300,9 +285,6 @@ User-tunable (admin UI):
 | "Possibly moored" threshold | 15 m |
 | Publish possibly moored estimates | on |
 | Publish weak fits | on |
-| Wind source | `self` (or `none`) |
-| Wind hint weight | 0.1 (0 = off) |
-| Wind hint max SOG | 0.5 kn |
 | Overlap alerts | on |
 | Overlap margin | 10 m |
 | Drag alerts | on |
@@ -319,7 +301,6 @@ radius and count.
 ### 10.1 Done (0.1.0)
 - Episode detection, heading-ray / ring / area classification, tags.
 - Deltas on other vessels' contexts, read-only GeoJSON resource provider.
-- Wind hint from own wind instruments, pluggable wind source.
 - Leaflet webapp.
 - Offline validation against recorded AIS.
 
@@ -327,6 +308,7 @@ radius and count.
 - Overlap and drag alerts (§2.7, decided 2026-11-18).
 - Seed tracks from the tracks plugin on start (§8, decided 2026-11-18).
 - Published on npm and the SignalK plugin registry (§1.1).
+- Wind hint removed from code, config and published data (§2.5).
 - Further items **(open, §13)**.
 
 ### 10.3 Post-1.0 / deferred
@@ -348,9 +330,13 @@ radius and count.
   one ship's radius by a factor of 4 (32 m vs about 120 m). Bow rays met within 11 m.
 - **Area instead of a guess.** For class B yachts in a narrow band, an arc can't fix
   the circle. Reporting the area is honest; a guessed small radius is dangerous (§2.4).
-- **Wind never places an anchor.** Mixing wind rays into the heading intersection at
-  9 % weight with a 65° bias moved the anchor 65 m. Bias is undetectable by the
-  miss/ahead checks. Hence bearing hint and agreement check only.
+- **No wind (decided 2026-11-18).** Wind as an anchor locator was rejected first:
+  mixing wind rays into the heading intersection at 9 % weight with a 65° bias moved
+  the anchor 65 m, and bias is undetectable by the miss/ahead checks. A weak bearing
+  hint plus agreement check was then built (0.1.x), but on recorded data it was off
+  by a median 56°, and 24 of 32 hinted episodes were berths. A gridded model wind
+  source was considered and rejected with it. The hint is removed for 1.0.0; the
+  experiment stays in docs/VALIDATION.md so nobody retries it unknowingly.
 - **Tags instead of suppression.** Doubtful cases are published and flagged so the
   user can judge; two config switches hide them for those who prefer.
 - **No harbor polygons.** They'd need per-region data; "still" + tags removes all but
@@ -382,7 +368,5 @@ radius and count.
 
 ## 13. Open Questions
 
-1. What must 1.0.0 include? Candidates: restart persistence / seeding from history,
-   gridded wind source, drag detection, npm publish.
-2. Live validation: the detector has only been run offline; how much live testing
+1. Live validation: the detector has only been run offline; how much live testing
    counts as enough for 1.0.0?
