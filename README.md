@@ -26,6 +26,8 @@ The wind is a noisy pointer. In testing, a boat's heading differed from the harb
 - Area-only results get `anchorBearingDegrees`: the likely direction of the anchor from the occupied area. It is a weighted circular mean of the bow headings (weight 1 each) and the wind (weight `windWeight` each, default 0.1). A class B yacht without heading gets the upwind direction.
 - Placed anchors get `anchorAgreement`, the mean cosine between "boat to anchor" and "towards the wind". When it is below 0, the anchor sits downwind of the boat and the estimate is tagged `wind-disagrees`.
 
+The hint uses only the last 6 hours of a stay, and is left out when the wind direction shifted too much over that window (steadiness under 0.5) or the swing is tagged `possibly-moored`, where any bearing would be GPS noise at a berth. Against recorded data with harbor wind as the source, the wind-only bearing was off by a median of 56 degrees from anchors placed by the track (33 degrees in steady wind), so read it as "probably this side", not as a direction to steer.
+
 The wind source is an object with `windFromAt(t, lat, lon)` (see `src/wind.js`), so a gridded wind model can be plugged in later.
 
 ### Tags and caveats

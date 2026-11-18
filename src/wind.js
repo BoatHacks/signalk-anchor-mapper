@@ -128,9 +128,10 @@ function annotateWind(fixes, source, { maxSogKnots = 0.5 } = {}) {
  *
  * points: the episode's fixes [{ lat, lon, heading?, windFrom? }]
  * center: the placed anchor { latitude, longitude }, or null for an area-only result
- * o: { windWeight, windMinFixes }
+ * o: { windWeight, windMinFixes, windMinSteadiness }
  *
- * Returns null when the hint is off or there are fewer than windMinFixes wind samples, else
+ * Returns null when the hint is off, there are fewer than windMinFixes wind samples,
+ * or the wind direction was less steady than windMinSteadiness, else
  *   upwindBearingDeg   circular mean of the wind direction (where it blew from)
  *   steadiness         1 for a constant wind direction, towards 0 for a shifting one
  *   windFixes          number of wind samples
@@ -173,6 +174,7 @@ function windHint(points, center, o = {}) {
     }
   }
   if (n < minFixes) return null
+  if (Math.hypot(ws, wc) / n < (o.windMinSteadiness ?? 0)) return null
   offsets.sort((a, b) => a - b)
   const m = offsets.length >> 1
   const medOff = offsets.length === 0 ? null : offsets.length % 2 ? offsets[m] : (offsets[m - 1] + offsets[m]) / 2
