@@ -16,6 +16,11 @@ The point is situational awareness at anchor: when you arrive in an anchorage, o
 when someone anchors near you, you want to know where their anchor is and how much
 room they swing through, which their AIS position alone does not tell you.
 
+**Audience:** any SignalK user. 1.0.0 is published on npm and the SignalK plugin
+registry, so defaults, documentation and failure modes must work for setups unlike
+the author's: other regions and AIS densities, servers without own wind instruments
+or without the tracks plugin, and small hardware such as a Raspberry Pi.
+
 ### 1.2 Background
 
 - **AIS** (ITU-R M.1371) gives position, and for class A transmitters also true
@@ -252,14 +257,15 @@ radius and count.
 - **Reuse `navigation.anchor.*` on other vessels.** Existing clients draw them for free.
 - **Resource provider over plugin routes** for anonymous read access.
 - **No runtime dependencies**, plain Node, buildless webapp: runs on a Pi, easy to audit.
+- **Written for any SignalK user (decided 2026-11-18).** The plugin is published,
+  not a personal tool, so nothing may assume the author's boat, region or data.
 - **Single-pass dense-core trim.** Iterating collapses a ring onto its densest arc.
 
 ## 13. Open Questions
 
-1. Audience: personal tool, or published npm plugin for any SignalK user?
-2. Live only, or also an accumulated atlas of anchoring spots?
-3. Should anything relate others' swing circles to the own vessel (overlap, dragging)?
-4. What must 1.0.0 include? Candidates: restart persistence / seeding from history,
+1. Live only, or also an accumulated atlas of anchoring spots?
+2. Should anything relate others' swing circles to the own vessel (overlap, dragging)?
+3. What must 1.0.0 include? Candidates: restart persistence / seeding from history,
    gridded wind source, drag detection, npm publish.
-5. Live validation: the detector has only been run offline; how much live testing
+4. Live validation: the detector has only been run offline; how much live testing
    counts as enough for 1.0.0?
