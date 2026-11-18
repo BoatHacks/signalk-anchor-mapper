@@ -93,6 +93,10 @@ moves an implied anchor as far as the swing circle itself. So wind is used only:
 - as a bearing (`anchorBearingDegrees`) on area estimates, weighted 0.1 per wind
   sample against 1 per heading;
 - as an agreement check on placed anchors (`anchorAgreement`, tag `wind-disagrees`).
+- only from the last 6 h of a stay, only when the wind was steady over that window
+  (steadiness ≥ 0.5), and never for `possibly-moored` swings, where any bearing is
+  GPS noise at a berth. On recorded data the wind-only bearing was still off by a
+  median 56° (33° in steady wind), so it means "probably this side", nothing more.
 
 ### 2.6 Doubt is flagged, not hidden
 | Tag | Rule |
