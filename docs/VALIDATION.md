@@ -34,6 +34,21 @@ A circle fitted to the track alone is unreliable when the vessel sits in a narro
 
 Using the bow headings instead, the lines along the headings meet within about 11 m (median miss) of one point, with the anchor ahead of the bow in 100% of the fixes, giving a distance of about 116 m and a 95th percentile of about 126 m. For the ships that do swing through most of a circle, the heading based anchor and the circle fit agreed to 11 to 62 m. Hence the current design: headings first, ring fit only when the radius is at least 4 residual widths, otherwise report the occupied area.
 
+## Heading versus wind (negative result)
+
+Idea tested: a boat at anchor lies head to wind, so for class B yachts without a usable heading, the wind direction could stand in for the bow heading and point from the boat to its anchor.
+
+Two anchored test vessels, called A and B here, were compared against two wind sources. The figure is the median absolute difference between the vessel's heading and the direction the wind came from.
+
+| Wind source | Vessel A and B, median difference |
+|---|---|
+| Wind measured in the harbor | about 65 to 68 degrees |
+| Open-Meteo 10 m wind, hourly, 0.05 degree grid | about 35 to 40 degrees |
+
+The modelled wind agrees better than the local harbor measurement, probably because a harbor sensor is sheltered and deflected by buildings and masts, but even the better figure is far too loose. At a typical 30 to 50 m rode, a 35 to 40 degree error moves the implied anchor by roughly 17 to 32 m sideways, which is as large as the swing circle itself. Current, tide, gusts, sheering on the chain and wind shifts within the hour all pull the bow away from the wind direction.
+
+Conclusion: heading into wind alone cannot place an anchor. Wind direction may still help as one weak signal combined with others (track shape, the occupied area, repeat use of the spot by other vessels), for example to choose which end of a narrow band the anchor is likely to be on, but it must not be used to derive an anchor point on its own. The plugin does not use wind at present.
+
 ## Pitfalls found
 
 - Approach and departure tracks pulled into an episode distort the circle fit badly and can make a berth look like a 250 m swing. The dense-core trim fixes this. It must be a single pass: iterating collapses a ring onto its densest arc.
