@@ -27,6 +27,8 @@ const DEFAULTS = {
   // 0 turns the hint off. It never places an anchor on its own.
   windWeight: 0.1,
   windMinFixes: 20, // wind samples needed before the hint is reported
+  windRecentS: 6 * 3600, // only the last hours of an episode: a week of wind averages to nothing
+  windMinSteadiness: 0.5, // drop the hint when the wind shifted too much over that window
   windDisagreeCos: 0 // tag 'wind-disagrees' when the anchor lies downwind of the boat on average
 }
 
@@ -381,7 +383,10 @@ function analyzeTrack(fixes, opts = {}) {
     const heading = anchorFromHeadings(pts, opts)
     const cls = classify(fit, heading, opts)
     const center = cls.verdict === 'anchor' ? cls.center : cls.verdict === 'anchor-area' ? null : undefined
-    const hint = center === undefined ? null : windHint(pts, center, { ...DEFAULTS, ...opts })
+    // No hint for tight swings: at a berth the "anchor bearing" is GPS noise.
+    const o = { ...DEFAULTS, ...opts }
+    const recent = pts.filter((p) => p.t >= e.t1 - o.windRecentS)
+    const hint = center === undefined || cls.tags.includes('possibly-moored') ? null : windHint(recent, center, o)
     if (hint && cls.verdict === 'anchor' && hint.anchorAgreement != null && hint.anchorAgreement < (opts.windDisagreeCos ?? DEFAULTS.windDisagreeCos)) {
       cls.tags = cls.tags.concat('wind-disagrees')
     }

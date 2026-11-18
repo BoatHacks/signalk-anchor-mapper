@@ -58,6 +58,17 @@ A synthetic sweep (120 m rode, 10 seeds, 50 and 120 degree swing sectors) confir
 
 So the wind only contributes a bearing (where the anchor probably lies) and an agreement check on anchors placed by other methods, with a default weight of 0.1 per wind sample against 1 per heading.
 
+### Check against recorded AIS (2026-11-18)
+
+The hint at 8da227f was run over the recorded data (1.95 M fixes, 818 vessels, 25 Oct to 18 Nov 2026) with the own vessel's harbor wind (AdvancedWind `directionTrue`, mean apparent 2.6 m/s, 0.5 to 20 km from the targets).
+
+- 32 episodes from type 36/37 vessels got a hint (14 anchor, 18 area). Verdicts, centres, areas and radii were identical with `windWeight` 0.1 and 0.
+- Wind-only bearing vs the bearing from the episode centroid to the placed anchor: median error 56 degrees (n=13), 33 degrees with steadiness at least 0.5 (n=7), 61 degrees below that (n=6). Random bearings would give 90. Two cases were almost exactly reversed.
+- Median `anchorAgreement` over the 14 anchors: 0.29. `wind-disagrees` fired twice, both just below 0 on tight possibly-moored fits.
+- 24 of the 32 hinted episodes were tagged possibly-moored, mostly berthed boats inside the harbor, and multi-day stays averaged the wind down to a steadiness of 0.2 to 0.4.
+
+Changes made from this: no hint for possibly-moored swings, wind taken from the last 6 h of a stay only, and no hint below a steadiness of 0.5. A gridded wind at the target's position (35 to 40 degrees offline) would be the fairer source and is the next thing to try.
+
 ## Pitfalls found
 
 - Approach and departure tracks pulled into an episode distort the circle fit badly and can make a berth look like a 250 m swing. The dense-core trim fixes this. It must be a single pass: iterating collapses a ring onto its densest arc.

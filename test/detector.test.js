@@ -231,3 +231,25 @@ test('windWeight 0 or too few wind samples: no hint', () => {
   assert.strictEqual(analyzeTrack(few)[0].hint, null)
   assert.strictEqual(analyzeTrack(stripWind(track))[0].hint, null)
 })
+
+test('no hint for a possibly-moored swing (berth wobble is not an anchor bearing)', () => {
+  const rand = rng(11)
+  const track = ringTrack({ r: 10, hours: 6, noiseM: 0.8 }).map((f) => ({ ...f, windFrom: rand() * 0.2 }))
+  const e = analyzeTrack(track)[0]
+  assert.ok(e.tags.includes('possibly-moored'))
+  assert.strictEqual(e.hint, null)
+})
+
+test('no hint when the wind shifted too much; only the recent hours count', () => {
+  const rand = rng(12)
+  // Wind uniformly random over the whole stay: not steady.
+  const random = sectorTrack({ withHeading: false }).map((f) => ({ ...f, windFrom: rand() * 2 * Math.PI }))
+  assert.strictEqual(analyzeTrack(random)[0].hint, null)
+  // Random for the first 2 h, then steady from 20 degrees: the hint uses the last 6 h only.
+  const mixed = sectorTrack({ withHeading: false }).map((f) => ({ ...f, windFrom: f.t < 2 * 3600 ? rand() * 2 * Math.PI : 20 * Math.PI / 180 }))
+  const h = analyzeTrack(mixed)[0].hint
+  assert.ok(h && Math.abs(h.anchorBearingDeg - 20) < 0.5, `hint ${h && h.anchorBearingDeg}`)
+  assert.ok(h.steadiness > 0.99)
+  const whole = analyzeTrack(mixed, { windRecentS: 8 * 3600 })[0].hint
+  assert.ok(whole.steadiness < 0.9, `whole-stay steadiness ${whole.steadiness}`)
+})
