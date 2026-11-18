@@ -1,7 +1,6 @@
 'use strict'
 
 const { makeProjection, median, percentile } = require('./geo')
-const { windHint } = require('./wind')
 
 const DEFAULTS = {
   // Episode detection
@@ -20,16 +19,7 @@ const DEFAULTS = {
   // Heading based anchor location
   minHeadedFixes: 30,
   minAheadFraction: 0.85,
-  maxMissFraction: 0.4,
-  // Heading-into-wind hint (see wind.js). Weight of one wind sample relative to one
-  // bow heading when estimating which way the anchor lies. The wind is a noisy pointer
-  // (median 35 to 68 degrees off the heading in testing), so it is low by default;
-  // 0 turns the hint off. It never places an anchor on its own.
-  windWeight: 0.1,
-  windMinFixes: 20, // wind samples needed before the hint is reported
-  windRecentS: 6 * 3600, // only the last hours of an episode: a week of wind averages to nothing
-  windMinSteadiness: 0.5, // drop the hint when the wind shifted too much over that window
-  windDisagreeCos: 0 // tag 'wind-disagrees' when the anchor lies downwind of the boat on average
+  maxMissFraction: 0.4
 }
 
 /**
@@ -324,10 +314,7 @@ function anchorFromHeadings(points, opts = {}) {
  *   'other'        reserved
  * method (for 'anchor'): 'heading' (bow headings meet at the anchor) or 'ring-fit'
  * quality: 'strong' for a clean fit, 'weak' for a plausible but noisier one
- * tags: ['possibly-moored'] for swings tighter than opts.tightSwingM,
- *       ['wind-disagrees'] when the placed anchor lies downwind of the boat
- * hint (from analyzeTrack): the wind summary and, for 'anchor-area', anchorBearingDeg,
- *       the likely direction of the anchor from the area centre
+ * tags: ['possibly-moored'] for swings tighter than opts.tightSwingM
  */
 function classify(fit, heading, opts = {}) {
   const o = { ...DEFAULTS, ...opts }
@@ -370,8 +357,7 @@ function classify(fit, heading, opts = {}) {
 /**
  * Analyse one vessel's track. Returns one entry per stationary episode:
  * { t0, t1, ongoing, centroid, verdict, method, quality, tags, center, swingRadiusM, area, fit, heading }
- * Fixes may carry an optional `heading` (radians true) for the heading based method,
- * and an optional `windFrom` (radians true, see wind.js) for the heading-into-wind hint.
+ * Fixes may carry an optional `heading` (radians true) for the heading based method.
  */
 function analyzeTrack(fixes, opts = {}) {
   const { fixes: clean, episodes } = findEpisodes(fixes, opts)
@@ -382,14 +368,6 @@ function analyzeTrack(fixes, opts = {}) {
     const fit = fitEpisode(pts.map((p) => ({ lat: p.lat, lon: p.lon })))
     const heading = anchorFromHeadings(pts, opts)
     const cls = classify(fit, heading, opts)
-    const center = cls.verdict === 'anchor' ? cls.center : cls.verdict === 'anchor-area' ? null : undefined
-    // No hint for tight swings: at a berth the "anchor bearing" is GPS noise.
-    const o = { ...DEFAULTS, ...opts }
-    const recent = pts.filter((p) => p.t >= e.t1 - o.windRecentS)
-    const hint = center === undefined || cls.tags.includes('possibly-moored') ? null : windHint(recent, center, o)
-    if (hint && cls.verdict === 'anchor' && hint.anchorAgreement != null && hint.anchorAgreement < (opts.windDisagreeCos ?? DEFAULTS.windDisagreeCos)) {
-      cls.tags = cls.tags.concat('wind-disagrees')
-    }
     return {
       t0: e.t0,
       t1: e.t1,
@@ -397,8 +375,7 @@ function analyzeTrack(fixes, opts = {}) {
       centroid: { latitude: lat, longitude: lon },
       ...cls,
       fit,
-      heading,
-      hint
+      heading
     }
   })
 }

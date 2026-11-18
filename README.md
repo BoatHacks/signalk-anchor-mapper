@@ -14,21 +14,7 @@ Early scaffold (0.1.0). The detection core is implemented and tested, and was va
    - **Bow headings** (vessels that transmit heading, mostly class A). A boat lying to its anchor points its bow at it, so the lines along the headings meet at the anchor. This works even when the boat sits in a narrow band, which is the normal case in steady wind and where a circle fitted to the track alone fails badly.
    - **Ring fit.** If the track is a genuine ring (most of the circle covered, and the radius clearly larger than the scatter), the circle centre is the anchor.
    - **Occupied area only.** If the vessel stays put and swings but neither method resolves an anchor, the plugin reports the area it occupied as an ellipse and does not invent an anchor point or radius.
-4. Adds the **heading-into-wind hint** (below).
-5. Tags the doubtful cases (below), then publishes the result.
-
-### Heading-into-wind hint
-
-A sailboat or pleasure craft lying to its anchor points its bow roughly into the wind, so the anchor is upwind of it. For vessels with AIS ship type 36 (sailing) or 37 (pleasure craft) that report no speed or a speed in the GPS-artifact range (default up to 0.5 kn), the plugin pairs each fix with the wind at that time. By default the wind comes from this vessel's own `environment.wind.directionTrue`, or from `angleTrueGround`/`angleTrueWater` plus its heading.
-
-The wind is a noisy pointer. In testing, a boat's heading differed from the harbor wind by a median of about 65 degrees, and from a gridded model wind by about 35 to 40 degrees. So the wind is only a weighted **bearing** hint and never places an anchor:
-
-- Area-only results get `anchorBearingDegrees`: the likely direction of the anchor from the occupied area. It is a weighted circular mean of the bow headings (weight 1 each) and the wind (weight `windWeight` each, default 0.1). A class B yacht without heading gets the upwind direction.
-- Placed anchors get `anchorAgreement`, the mean cosine between "boat to anchor" and "towards the wind". When it is below 0, the anchor sits downwind of the boat and the estimate is tagged `wind-disagrees`.
-
-The hint uses only the last 6 hours of a stay, and is left out when the wind direction shifted too much over that window (steadiness under 0.5) or the swing is tagged `possibly-moored`, where any bearing would be GPS noise at a berth. Against recorded data with harbor wind as the source, the wind-only bearing was off by a median of 56 degrees from anchors placed by the track (33 degrees in steady wind), so read it as "probably this side", not as a direction to steer.
-
-The wind source is an object with `windFromAt(t, lat, lon)` (see `src/wind.js`), so a gridded wind model can be plugged in later.
+4. Tags the doubtful cases (below), then publishes the result.
 
 ### Tags and caveats
 
@@ -38,7 +24,6 @@ The estimate comes from position tracks only, so it can be wrong in predictable 
 |---|---|
 | `possibly-moored` | The swing is under 15 m. That is hard to tell apart from a boat tied up at a berth or a mooring ball. |
 | `possible-mooring-buoy` | At least two other vessels have also stayed for hours within 100 m of this spot. That points at a berth, buoy or other fixed structure rather than a free anchor. |
-| `wind-disagrees` | The placed anchor lies downwind of the boat on average. The fix may be wrong, or the boat may be lying to current rather than wind. |
 | quality `weak` | The track is a plausible but noisy ring (partial arc, wind shifts, drift). |
 
 There are no harbor or marina polygons. Boats berthed in a marina show up as "still" (no swing) or get one of the tags above.
@@ -49,7 +34,7 @@ For every vessel judged to be anchored, on that vessel's own context (`vessels.u
 
 - `navigation.anchor.position`: `{ latitude, longitude }` of the estimated anchor
 - `navigation.anchor.maxRadius`: swing radius in metres (95th percentile distance of the vessel from the anchor)
-- `navigation.anchor.estimate`: kind (`anchor` or `area`), method, quality, tags, start time, dwell hours, the occupied area ellipse, `windHint` (`upwindBearingDegrees`, `anchorBearingDegrees`, `windShare`, `headingOffsetDegrees`, `anchorAgreement`, `windSamples`, or `null` without wind data), and a note about how it was estimated
+- `navigation.anchor.estimate`: kind (`anchor` or `area`), method, quality, tags, start time, dwell hours, the occupied area ellipse, and a note about how it was estimated
 
 For an area-only result `position` and `maxRadius` are `null` and the ellipse is in `estimate.area`. All values are set to `null` when the vessel is no longer anchored.
 
@@ -69,15 +54,12 @@ All in the admin UI under Server, Plugin Config, Anchor Mapper:
 - **Tag swings tighter than**: default 15 m
 - **Publish possibly moored estimates**: default on
 - **Publish weak fits**: default on
-- **Wind source**: `self` (default, the own vessel's wind instruments) or `none`
-- **Weight of the wind hint**: default 0.1 relative to one bow heading; 0 turns it off
-- **Use the wind hint only below this reported speed**: default 0.5 kn
 
 ## Known limits
 
 - Tracks live in memory, so a server restart loses history and detection needs the dwell time again to rebuild it. Seeding from the tracks plugin or a history database is planned.
 - A vessel with no position reports for more than 30 minutes ends its episode.
-- Without heading (class B yachts), a boat in a narrow band gets an area only, not an anchor point (with the upwind side as a hint when wind data exists). The shape of a short arc cannot fix the circle, and guessing would understate the swing radius badly.
+- Without heading (class B yachts), a boat in a narrow band gets an area only, not an anchor point. The shape of a short arc cannot fix the circle, and guessing would understate the swing radius badly.
 - Heading based estimates assume the bow points at the anchor. Strong tide or current, or a boat sheering on its chain, adds scatter, which is why such estimates are rated `weak` when the rays miss by more than 15% of the distance.
 
 ## Development

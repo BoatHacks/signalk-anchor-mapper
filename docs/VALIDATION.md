@@ -47,9 +47,9 @@ Two anchored test vessels, called A and B here, were compared against two wind s
 
 The modelled wind agrees better than the local harbor measurement, probably because a harbor sensor is sheltered and deflected by buildings and masts, but even the better figure is far too loose. At a typical 30 to 50 m rode, a 35 to 40 degree error moves the implied anchor by roughly 17 to 32 m sideways, which is as large as the swing circle itself. Current, tide, gusts, sheering on the chain and wind shifts within the hour all pull the bow away from the wind direction.
 
-Conclusion: heading into wind alone cannot place an anchor. Wind direction may still help as one weak signal combined with others (track shape, the occupied area, repeat use of the spot by other vessels), for example to choose which end of a narrow band the anchor is likely to be on, but it must not be used to derive an anchor point on its own. The plugin uses it only that way, as described next.
+Conclusion: heading into wind alone cannot place an anchor. Wind direction may still help as one weak signal combined with others (track shape, the occupied area, repeat use of the spot by other vessels), for example to choose which end of a narrow band the anchor is likely to be on, but it must not be used to derive an anchor point on its own. A weak bearing hint was built and tested (below), then removed.
 
-### Wind as a weak bearing hint (what the plugin does)
+### Wind as a weak bearing hint (built, then removed)
 
 A synthetic sweep (120 m rode, 10 seeds, 50 and 120 degree swing sectors) confirmed it:
 
@@ -67,7 +67,9 @@ The hint at 8da227f was run over the recorded data (1.95 M fixes, 818 vessels, 2
 - Median `anchorAgreement` over the 14 anchors: 0.29. `wind-disagrees` fired twice, both just below 0 on tight possibly-moored fits.
 - 24 of the 32 hinted episodes were tagged possibly-moored, mostly berthed boats inside the harbor, and multi-day stays averaged the wind down to a steadiness of 0.2 to 0.4.
 
-Changes made from this: no hint for possibly-moored swings, wind taken from the last 6 h of a stay only, and no hint below a steadiness of 0.5. A gridded wind at the target's position (35 to 40 degrees offline) would be the fairer source and is the next thing to try.
+Changes tried after this: no hint for possibly-moored swings, wind taken from the last 6 h of a stay only, and no hint below a steadiness of 0.5.
+
+**Decision (2026-11-18): the wind hint was removed.** It stayed too weak on recorded data to be worth its configuration and output fields, so the plugin uses no wind data. The code is in history at 8da227f and 90f25b7 if a gridded source (35 to 40 degrees offline) is ever worth a retry.
 
 ## Pitfalls found
 
