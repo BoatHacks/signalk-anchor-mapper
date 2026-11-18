@@ -16,6 +16,11 @@ The point is situational awareness at anchor: when you arrive in an anchorage, o
 when someone anchors near you, you want to know where their anchor is and how much
 room they swing through, which their AIS position alone does not tell you.
 
+Over time it also builds an **anchoring atlas**: every anchoring it has observed is
+kept, so the user can see where boats anchor in a bay, how much room they take, and
+when, including in places they are visiting for the first time after having been in
+AIS range of them before.
+
 **Audience:** any SignalK user. 1.0.0 is published on npm and the SignalK plugin
 registry, so defaults, documentation and failure modes must work for setups unlike
 the author's: other regions and AIS densities, servers without own wind instruments
@@ -52,6 +57,9 @@ or without the tracks plugin, and small hardware such as a Raspberry Pi.
 | **Heading ray** | The line from a fix along the vessel's true heading. Bow points at anchor, so rays meet at the anchor. |
 | **Ring fit** | A circle fitted to the track. Trusted only if the track covers a real ring (§2). |
 | **Wind hint** | A low-weight bearing towards the likely anchor side, derived from the wind (§2.5). |
+| **Anchoring record** | One finished (or still ongoing) anchoring of one vessel, kept in the atlas (§4.2). |
+| **Atlas** | The stored collection of anchoring records, on disk. |
+| **Spot** | A cluster of anchoring records close together, derived from the atlas when it is viewed, not stored. |
 | **Tag** | A flag on an estimate that names a known way it may be wrong (§2.6). |
 
 ## 2. Domain Rules
@@ -129,6 +137,9 @@ Per vessel:
   all three paths are set to `null`.
 - An `anchor` result that degrades to `area` sets `position` and `maxRadius` to
   `null` in the same delta, so no client keeps a stale anchor.
+- When a published estimate ends, its final state is written to the atlas as an
+  anchoring record (§4.2). Records are written for the ongoing estimate too, so a
+  restart loses at most one analysis cycle of atlas data.
 - Tracks older than the history window (default 12 h) drop off; a vessel with no
   fixes left disappears.
 
@@ -152,6 +163,18 @@ optional `windFrom` (rad true, added for wind-hint vessels).
 | `arcDegrees` | number or null | null | ring coverage |
 | `area` | null | `{ center, semiMajorM, semiMinorM, bearingDeg }` | |
 | `windHint` | object or null | object or null | §2.5 |
+
+### 4.2 Anchoring record (atlas)
+
+The estimate's final state, plus `end` time, vessel MMSI, AIS ship type and length
+when known. Kept whatever its tags and quality, so the atlas view can filter rather
+than the recorder deciding. **(open: vessel identity and retention, §13)**
+
+### 4.3 Spot (derived)
+
+Records whose anchors (or area centres) lie close together form a spot, with a
+count, distinct vessels, typical and maximum swing radius, and the months it was
+used. Computed on demand, so the clustering can change without rewriting data.
 
 ## 5. Sources / Inputs
 
@@ -186,7 +209,11 @@ Feature: a Point at the anchor (or area centre), with properties `context`, `mms
 `since`, `dwellHours`. Writes are refused. Resource providers are chosen over plugin
 routes because they are readable under the server's read-only access setting.
 
-### 6.3 Plugin status
+### 6.3 Atlas
+Read-only access to anchoring records, filterable by bounding box and time range,
+and to spots computed from them. **(Shape to be fixed in ARCHITECTURE.md.)**
+
+### 6.4 Plugin status
 `N anchored, M area only, from K tracked`.
 
 ## 7. User Interface
@@ -198,12 +225,18 @@ A buildless webapp (listed in the SignalK webapp menu):
 - The vessel's recent track, when the tracks plugin is installed.
 - Tags and quality listed per vessel, so doubtful estimates are visibly doubtful.
 
+- An atlas view: spots in the visible area with their count, typical swing radius
+  and months used, and the individual records behind a spot on demand. Tagged
+  records (`possibly-moored`, `possible-mooring-buoy`) hidden by default.
+
 Constraint: works on the boat without internet for everything except map tiles.
 
 ## 8. Persistence
 
-Currently nothing persists; tracks and own-vessel wind are in memory and a restart
-needs the full dwell time before the first estimate. **(open, §13)**
+- **The atlas persists** on disk in the plugin's data directory and must survive
+  restarts and plugin upgrades.
+- Tracks and own-vessel wind are in memory today; whether they also persist across
+  restarts is still **(open, §13)**.
 
 ## 9. Configuration
 
@@ -234,7 +267,9 @@ radius and count.
 - Leaflet webapp.
 - Offline validation against recorded AIS.
 
-### 10.2 Needed for 1.0.0 **(open, §13)**
+### 10.2 Needed for 1.0.0
+- Anchoring atlas: recording, persistence, read API, atlas view (decided 2026-11-18).
+- Further items **(open, §13)**.
 
 ### 10.3 Post-1.0 / deferred **(open, §13)**
 
@@ -263,11 +298,15 @@ radius and count.
 - **No runtime dependencies**, plain Node, buildless webapp: runs on a Pi, easy to audit.
 - **Written for any SignalK user (decided 2026-11-18).** The plugin is published,
   not a personal tool, so nothing may assume the author's boat, region or data.
+- **Atlas in 1.0.0 (decided 2026-11-18).** Chosen over "live only" despite the risk
+  that detection errors become a permanent map. Mitigation: records keep their tags
+  and quality and the view filters, so a bad record can be hidden or purged later.
+- **Spots are derived, not stored**, so the clustering rule can change freely.
 - **Single-pass dense-core trim.** Iterating collapses a ring onto its densest arc.
 
 ## 13. Open Questions
 
-1. Live only, or also an accumulated atlas of anchoring spots?
+1. Atlas records: keep the vessel's MMSI, or anonymise? How long to keep records?
 2. Should anything relate others' swing circles to the own vessel (overlap, dragging)?
 3. What must 1.0.0 include? Candidates: restart persistence / seeding from history,
    gridded wind source, drag detection, npm publish.
