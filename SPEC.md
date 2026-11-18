@@ -303,12 +303,12 @@ radius and count.
 - Deltas on other vessels' contexts, read-only GeoJSON resource provider.
 - Leaflet webapp.
 - Offline validation against recorded AIS.
+- Wind hint removed from code, config and published data (§2.5, 8392156).
 
 ### 10.2 Needed for 1.0.0
 - Overlap and drag alerts (§2.7, decided 2026-11-18).
 - Seed tracks from the tracks plugin on start (§8, decided 2026-11-18).
 - Published on npm and the SignalK plugin registry (§1.1).
-- Wind hint removed from code, config and published data (§2.5).
 - Further items **(open, §13)**.
 
 ### 10.3 Post-1.0 / deferred
