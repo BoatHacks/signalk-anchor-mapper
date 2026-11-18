@@ -1,7 +1,6 @@
 # Anchor Mapper Specification
 
-> Status: draft, written from the 0.1.0 code and docs/VALIDATION.md. Sections marked
-> **(open)** wait on decisions listed in §13.
+> Status: 1.0.0 scope agreed on 2026-11-18. Post-1.0 items are marked as such.
 
 ## 1. Introduction
 
@@ -309,13 +308,16 @@ radius and count.
 - Overlap and drag alerts (§2.7, decided 2026-11-18).
 - Seed tracks from the tracks plugin on start (§8, decided 2026-11-18).
 - Published on npm and the SignalK plugin registry (§1.1).
-- Further items **(open, §13)**.
+- **Live validation gate:** at least 2 weeks running on the author's own server
+  before release. Checked against class A vessels' reported navigational status
+  ("at anchor" vs our verdicts), plus visual spot checks of yacht estimates and a
+  log of every overlap and drag alert with whether it was real. Results go into
+  docs/VALIDATION.md; any false drag alarm blocks the release until explained.
 
 ### 10.3 Post-1.0 / deferred
 - **Anchoring atlas** (§4.2, §4.3, §6.3): recording, persistence, read API, atlas
   view. Taken off the 1.0.0 roadmap on 2026-11-18 to keep 1.0.0 focused on the
   live picture; the design decisions for it below still stand.
-- Further items **(open, §13)**.
 
 ## 11. References
 
@@ -363,10 +365,9 @@ radius and count.
   is therefore a long-term log of identifiable vessels' whereabouts, which the README
   must state plainly so installers can decide (data protection rules may apply to
   them). The data stays local and is never shared by the plugin.
+- **Two weeks live on one server before 1.0.0 (decided 2026-11-18)**, chosen over
+  offline replay only and over adding an outside beta tester. Accepted risk: the
+  thresholds stay validated on one coast; regional tuning is a post-1.0 concern.
 - **Spots are derived, not stored**, so the clustering rule can change freely.
 - **Single-pass dense-core trim.** Iterating collapses a ring onto its densest arc.
 
-## 13. Open Questions
-
-1. Live validation: the detector has only been run offline; how much live testing
-   counts as enough for 1.0.0?
