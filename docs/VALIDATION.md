@@ -47,7 +47,16 @@ Two anchored test vessels, called A and B here, were compared against two wind s
 
 The modelled wind agrees better than the local harbor measurement, probably because a harbor sensor is sheltered and deflected by buildings and masts, but even the better figure is far too loose. At a typical 30 to 50 m rode, a 35 to 40 degree error moves the implied anchor by roughly 17 to 32 m sideways, which is as large as the swing circle itself. Current, tide, gusts, sheering on the chain and wind shifts within the hour all pull the bow away from the wind direction.
 
-Conclusion: heading into wind alone cannot place an anchor. Wind direction may still help as one weak signal combined with others (track shape, the occupied area, repeat use of the spot by other vessels), for example to choose which end of a narrow band the anchor is likely to be on, but it must not be used to derive an anchor point on its own. The plugin does not use wind at present.
+Conclusion: heading into wind alone cannot place an anchor. Wind direction may still help as one weak signal combined with others (track shape, the occupied area, repeat use of the spot by other vessels), for example to choose which end of a narrow band the anchor is likely to be on, but it must not be used to derive an anchor point on its own. The plugin uses it only that way, as described next.
+
+### Wind as a weak bearing hint (what the plugin does)
+
+A synthetic sweep (120 m rode, 10 seeds, 50 and 120 degree swing sectors) confirmed it:
+
+- Wind rays alone, unbiased with 10 degrees of scatter: anchor 12 to 50 m off. With a 30 degree bias: 60 to 70 m off at every scatter level. The miss and ahead checks cannot detect a bias.
+- Wind rays mixed into the bow-heading intersection at only 9% of the weight, with a 65 degree bias, moved the anchor 65 m. In a narrow sector the heading rays are nearly parallel, so the intersection is weakly fixed along one axis and a skewed ray decides it.
+
+So the wind only contributes a bearing (where the anchor probably lies) and an agreement check on anchors placed by other methods, with a default weight of 0.1 per wind sample against 1 per heading.
 
 ## Pitfalls found
 

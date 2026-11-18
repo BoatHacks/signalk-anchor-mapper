@@ -9,10 +9,10 @@ class TrackStore {
   constructor({ maxAgeS = 12 * 3600, minFixIntervalS = 30 } = {}) {
     this.maxAgeS = maxAgeS
     this.minFixIntervalS = minFixIntervalS
-    this.tracks = new Map() // id -> [{ t, lat, lon, heading? }]
+    this.tracks = new Map() // id -> [{ t, lat, lon, heading?, sog? }]
   }
 
-  add(id, t, lat, lon, heading) {
+  add(id, t, lat, lon, heading, sog) {
     if (!Number.isFinite(t) || !Number.isFinite(lat) || !Number.isFinite(lon)) return false
     let track = this.tracks.get(id)
     if (!track) {
@@ -24,6 +24,7 @@ class TrackStore {
     if (last && t - last.t < this.minFixIntervalS) return false
     const fix = { t, lat, lon }
     if (Number.isFinite(heading)) fix.heading = heading
+    if (Number.isFinite(sog)) fix.sog = sog
     track.push(fix)
     return true
   }
