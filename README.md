@@ -4,7 +4,7 @@ A [SignalK Server](https://github.com/SignalK/signalk-server) plugin that works 
 
 ## Status
 
-Early scaffold (0.1.0). The detection core is implemented and tested, and was validated offline against several weeks of recorded AIS data (see [docs/VALIDATION.md](docs/VALIDATION.md)). Not yet installed on a live server and not yet published to npm.
+Early release (0.2.0). The detection core is implemented and tested, and was validated offline against several weeks of recorded AIS data (see [docs/VALIDATION.md](docs/VALIDATION.md)). Not yet installed on a live server and not yet published to npm.
 
 ## How it works
 
@@ -40,6 +40,21 @@ For an area-only result `position` and `maxRadius` are `null` and the ellipse is
 
 A read-only resource provider also serves the current estimates as GeoJSON features at `/signalk/v2/api/resources/anchored-vessels`. Resource providers are readable without admin rights under the server's read-only access setting, unlike plugin routes.
 
+## Alerts
+
+**Advisory, not an anchor watch.** The alerts rest on estimates made from other boats' AIS tracks, which can be wrong or late. Never rely on them as your only anchor watch.
+
+Alerts are SignalK notifications on your own vessel:
+
+- `notifications.anchorMapper.overlap.<mmsi>`: state `warn`, method `visual`, when another boat's swing circle overlaps yours or comes within the overlap margin (10 m). Needs an anchor set on your own vessel, as an anchor alarm plugin does with `navigation.anchor.position` and `navigation.anchor.maxRadius`. Your alarm radius counts as your swing radius, so a generous alarm radius warns a little early.
+- `notifications.anchorMapper.dragging.<mmsi>`: when an anchored boat has been outside its swing circle plus a margin (20 m, or 25 % of the radius if larger) for at least 90 s over at least two position reports. State `alarm` with `visual` and `sound` when it is within two swing radii of your own anchor, otherwise a silent `warn`.
+
+Each alert returns to `normal` when its condition stops, with some hysteresis so it does not flap. A boat leaving under way (faster than 3 kn, or moving bow-first) is not reported as dragging, and a drag alert stays 10 minutes after the estimate ends so it is seen. Both alerts are on the map too: orange for overlap and red for dragging, in the webapp and in Freeboard-SK.
+
+Only strong estimates alert. Weak fits never do unless you turn on "Alert on doubtful estimates". Boats tagged possibly moored or possible mooring buoy can raise overlap warnings (a mooring in your way is real) but never drag alarms. Without that setting, only anchor estimates (not occupied areas) can be dragging.
+
+After a restart the plugin needs estimates again before it can alert; see "Known limits".
+
 ## Webapp
 
 `public/` is a buildless Leaflet webapp with the OpenStreetMap base map and the OpenSeaMap seamark layer. It opens centred on your own vessel's `navigation.position`; without a position fix it shows the estimates instead, and re-centres on your boat once a fix arrives (unless you have already moved the map). It draws each estimate as a circle or ellipse in the same style as the Freeboard layer (shapes and colours come from the shared `public/shapes.js`), with a legend, its track (fetched from the SignalK tracks plugin when that is installed) and the tags. Your own anchor and alarm radius are drawn in red when an anchor alarm plugin has set them, so overlapping swing circles are easy to spot. Leaflet is vendored in `public/vendor/leaflet`. Tiles load from the internet, so the map background is blank offline.
@@ -65,6 +80,7 @@ All in the admin UI under Server, Plugin Config, Anchor Mapper:
 - **Tag swings tighter than**: default 15 m
 - **Publish possibly moored estimates**: default on
 - **Publish weak fits**: default on
+- **Alerts** group: overlap alerts (default on), overlap margin (10 m), drag alerts (default on), drag margin (20 m), drag time outside (90 s), alert on doubtful estimates (default off)
 
 ## Known limits
 

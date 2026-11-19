@@ -117,20 +117,40 @@ There are no harbor or marina polygons; berthed boats fall out as "still" or tag
 
 ### 2.7 Alerts about other vessels
 
-- **Overlap** is only checked while the own anchor is set. Two placed anchors overlap
-  when the distance between them is less than the sum of both swing radii plus a
-  margin (default 10 m). For an area estimate, the ellipse's semi-major axis around
-  its centre stands in for the circle; that over-warns rather than under-warns.
+All alerts are advisory estimates, not an anchor watch.
+
+- **Overlap** is only checked while the own anchor is set (position and radius). Two
+  placed anchors overlap when the distance between them is less than the sum of both
+  swing radii plus a margin (default 10 m). For an area estimate, the ellipse's
+  semi-major axis around its centre stands in for the circle; that over-warns rather
+  than under-warns. Overlap is a quiet warning (`warn`, `visual`).
 - **Dragging** is only checked for `anchor` estimates of quality `strong` without the
   `possibly-moored` or `possible-mooring-buoy` tags. A vessel counts as dragging when
-  its last N fixes (default 3, about 90 s) are all more than its swing radius plus a
-  margin (default 20 m, or 25 % of the radius if larger) from the anchor, while its
-  estimate was published in the previous cycle. It is checked on every fix, not every
-  analysis cycle, because a drag matters within minutes.
-- Doubtful estimates do not raise alerts by default; better a missed warning about a
-  shaky estimate than nightly false alarms that teach people to turn alerts off.
+  it has been more than its swing radius plus a margin (default 20 m, or 25 % of the
+  radius if larger) from the anchor for at least 90 s over at least two fixes, while
+  its estimate was published in the previous cycle. At anchor AIS reports about every
+  3 minutes, so in practice that is two fixes about 3 minutes apart; faster reports
+  catch a fast drag sooner. It is checked on every fix, not every analysis cycle,
+  because a drag matters within minutes (decided 2026-11-19).
+- **Frozen reference.** Once a vessel has a fix outside, the anchor and radius it is
+  judged against stay as they were until it is back inside or the alert ends. Without
+  that, the next cycle could refit a larger circle around the drift (the episode gate
+  is 250 m) and cancel a real drag.
+- **Departing is not dragging.** A fix does not count when the vessel moves faster
+  than 3 kn, or bow-first (track direction within 90° of its heading) above 1 kn. The
+  3 kn threshold is to be tuned on recorded data before release (docs/VALIDATION.md).
+- **Sound only near the own anchor.** A drag alert is `alarm` with `visual` and
+  `sound` when the vessel is within two swing radii (the larger of its own and the
+  own anchor's) of the own anchor, otherwise `warn` with `visual` only. Without an own
+  anchor it is always the silent warning (decided 2026-11-19).
+- Doubtful estimates (weak fits) do not raise alerts by default; better a missed
+  warning about a shaky estimate than nightly false alarms that teach people to turn
+  alerts off. Tagged boats (`possibly-moored`, `possible-mooring-buoy`) can raise
+  overlap warnings, since a mooring in the way is real, but never drag alarms. With
+  "alert on doubtful estimates" on, weak fits and tagged boats alert for both.
 - Every alert clears itself when its condition stops holding, with hysteresis (half
-  the margin) so it does not flap.
+  the margin) so it does not flap. A drag alert clears when the vessel is back inside
+  its circle plus half the margin.
 
 ## 3. Estimate Lifecycle
 
@@ -226,17 +246,19 @@ Published once per analysis cycle (default 5 min).
 Notifications on the own vessel context:
 - `notifications.anchorMapper.overlap.<mmsi>` — state `warn`, method `visual`
 - `notifications.anchorMapper.dragging.<mmsi>` — state `alarm`, method `visual` and
-  `sound`
+  `sound` near the own anchor, otherwise state `warn`, method `visual` (§2.7)
 
-The message names the vessel (AIS name, else MMSI) and the distance. Set to state
-`normal` when cleared.
+The message names the vessel (AIS name, else MMSI) and the distance, for example
+"Possible drag: SEA BREEZE (MMSI 227123456) is 45 m outside its swing circle"; the
+advisory note is in the README, not on the alert. Set to state `normal` when
+cleared, and for every active alert when the plugin stops.
 
 ### 6.2 Resource provider
 Read-only resource type `anchored-vessels`, at
 `/signalk/v2/api/resources/anchored-vessels[/<mmsi>]`. Each resource is a GeoJSON
 Feature: a Point at the anchor (or area centre), with properties `context`, `mmsi`,
 `name`, `kind`, `method`, `radiusMeters`, `area`, `quality`, `tags`,
-`since`, `dwellHours`. Writes are refused. Resource providers are chosen over plugin
+`since`, `dwellHours`, `alerts` (active alert kinds, `overlap` and/or `dragging`). Writes are refused. Resource providers are chosen over plugin
 routes because they are readable under the server's read-only access setting.
 
 A second read-only provider, type `plotterExtensions`, serves one resource,
@@ -259,7 +281,7 @@ called "Anchored vessels" (Plotter Extensions API, `overlays.data`):
   Solid outline for a strong fit, dotted for a weak one.
 - Area estimate: dashed ellipse with a small dot at its centre.
 - Colour by tag, the same as the webapp: blue normal, grey `possibly-moored`,
-  amber `possible-mooring-buoy` (orange overlap and red dragging once alerts exist).
+  amber `possible-mooring-buoy` (orange overlap and red dragging while an alert is active).
   Darker colours in Freeboard's night mode.
 - Name and radius (or area size) as a label from zoom 14; the layer itself from
   zoom 10.
@@ -322,7 +344,7 @@ User-tunable (admin UI):
 | Overlap margin | 10 m |
 | Drag alerts | on |
 | Drag margin | 20 m or 25 % of the radius |
-| Drag fixes needed | 3 |
+| Drag time outside | 90 s (over at least 2 fixes) |
 | Alert on doubtful estimates | off |
 
 Fixed (detector constants, validated and not exposed): radius gate, gap limit, spike
@@ -339,7 +361,8 @@ radius and count.
 - Wind hint removed from code, config and published data (§2.5, 8392156).
 
 ### 10.2 Needed for 1.0.0
-- Overlap and drag alerts (§2.7, decided 2026-11-18).
+- Overlap and drag alerts (§2.7, decided 2026-11-18). Built 2026-11-19; departure
+  filter still to be tuned on recorded data.
 - Seed tracks from the tracks plugin on start (§8, decided 2026-11-18).
 - Webapp opens on the own vessel's position (§7, decided 2026-11-19). Done.
 - Estimates drawn as vector shapes in Freeboard-SK (≥ 3.4) through a plotter

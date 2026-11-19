@@ -87,7 +87,7 @@ epoch-millisecond instants without a resolution and lets the TrackStore thin.
 Rejected: the v1 HTTP route (needs the port and a token under security, and
 tracks plugins before 3.0 kept tracks in memory, empty after a restart anyway).
 
-### 2.9 AlertMonitor (`src/alerts.js`) **(1.0.0, to build)**
+### 2.9 AlertMonitor (`src/alerts.js`)
 Pure state machine plus a small adapter that emits notifications. Inputs: the current
 estimates, the own anchor (`navigation.anchor.position`/`maxRadius` on self), and
 each new fix of an estimated vessel. Keeps per-vessel state (`normal`/`active`,
@@ -146,9 +146,10 @@ Episode = {
 Estimate = { context, id /* mmsi */, kind: 'anchor'|'area', method, quality, tags,
              since, dwellHours, center, radiusM?, arcDeg?, area? }
 
-// AlertMonitor state per vessel (1.0.0)
-AlertState = { overlap: 'normal'|'active', dragging: 'normal'|'active',
-               outsideCount, holdUntil }
+// AlertMonitor state per vessel
+AlertState = { overlap, dragging /* last notification value sent, or null = normal */,
+               outside /* consecutive outside fixes */, frozen /* { center, radiusM } */,
+               last /* last fix */, holdUntil }
 ```
 
 ## 4. Technology Stack
@@ -168,8 +169,8 @@ AlertState = { overlap: 'normal'|'active', dragging: 'normal'|'active',
 
 | System | Direction | Contract |
 |---|---|---|
-| SignalK subscriptions | in | `vessels.*`: `navigation.position`, `navigation.headingTrue` (10 s period); self: `navigation.anchor.position`, `navigation.anchor.maxRadius` (1.0.0) |
-| SignalK deltas (`app.handleMessage`) | out | `navigation.anchor.{position,maxRadius,estimate}` on other vessels; notifications on self (1.0.0) |
+| SignalK subscriptions | in | `vessels.*`: `navigation.position`, `navigation.headingTrue` (10 s period); self: `navigation.anchor.*` (own anchor) |
+| SignalK deltas (`app.handleMessage`) | out | `navigation.anchor.{position,maxRadius,estimate}` on other vessels; notifications on self |
 | `app.getPath` | in | vessel `name` for display and alert messages |
 | Resource provider API (v2) | out | `anchored-vessels`, read only; `plotterExtensions` (manifest), read only |
 | Freeboard-SK ≥ 3.4 | out | Plotter Extensions API v1: `overlays.data`, `background.iframe`, optional `actions`, `actions.overlay`, `windows`, `nightMode` |
@@ -204,7 +205,7 @@ src/
   store.js            in-memory track buffer
   geo.js              projection and stats helpers
   seed.js             (1.0.0) seed tracks from the tracks plugin
-  alerts.js           (1.0.0) overlap and drag state machine
+  alerts.js           overlap and drag state machine
   publish.js          (1.0.0, extracted) deltas and resource provider
   plotterext.js       Freeboard-SK extension manifest
 public/

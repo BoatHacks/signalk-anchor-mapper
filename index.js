@@ -246,7 +246,13 @@ module.exports = function (app) {
         (options.includeWeakFits !== false || e.kind === 'area' || e.quality === 'strong')
     )
     publisher.publish(keep)
-    if (alerts) send(alerts.onCycle([...publisher.current().values()], nowS))
+    if (alerts) {
+      try {
+        send(alerts.onCycle([...publisher.current().values()], nowS))
+      } catch (err) {
+        app.error(`alert evaluation failed: ${err.message}`)
+      }
+    }
   }
 
   plugin.start = function (options) {
