@@ -181,17 +181,46 @@ hint" (wind was removed).
   older simply shows nothing and no errors. Screenshot for the README.
 
 ## Steps
-- [ ] `public/shapes.js` + `test/shapes.test.js`; webapp switched to it (no visual change)
-- [ ] `src/plotterext.js` manifest + provider registration + tests
-- [ ] Vendor the bus client with licence; `style.json` + style test
-- [ ] Runtime: poll, build, `setData`, night mode, `skippedLayers` log
-- [ ] Details window and both actions
-- [ ] Webapp: legend, own anchor circle (plan 4)
+- [x] `public/shapes.js` + `test/shapes.test.js`; webapp switched to it
+- [x] `src/plotterext.js` manifest + provider registration + tests
+- [x] Vendor the bus client with licence; `style.json` + style test
+- [x] Runtime: poll, build, `setData`, night mode, `skippedLayers` log
+- [x] Details window and both actions
+- [x] Webapp: legend, own anchor circle (plan 4)
 - [ ] After plan 2: `alerts` on features, overlap/dragging colours in both views
-- [ ] SPEC §1.2, §6, §7, §12 and ARCHITECTURE §2, §4, §5, §7 updated; README section
+- [x] SPEC §1.2, §6, §7, §12 and ARCHITECTURE §2, §4, §5, §7 updated; README section
       "Seeing anchors in Freeboard" (needs 3.4+, reload after enabling, where the
       layer toggle is); package keywords
 - [ ] Manual check on the Pi, screenshots
+
+## As built (2026-11-19)
+Differences from the approach above, and how it was checked:
+- **Weak fits are dotted** (`line-dasharray [0.5, 2]`, round caps), not dashed, so
+  they stay distinct from the dashed area ellipse. Same in the webapp and legend.
+- **Layer filters use a `part` property** (`shape` / `anchor`) set by
+  `toOverlayFeatures`, not `geometry-type`.
+- **No `units` capability.** Labels stay in metres like the webapp; declaring it
+  unused would be misleading. Add it if labels ever follow the user's units.
+- **No `resources.list` fallback.** Freeboard gives background, panel and window
+  iframes `allow-scripts allow-same-origin`, so a same-origin fetch with the user's
+  session works.
+- **No explicit `openPanel` fallback** for hosts without `windows`: the API says
+  such a host treats an `openWindow` action as `openPanel` itself.
+- **Webapp circles stay `L.circle`** (exact and smoother in Leaflet); ellipses come
+  from `shapes.js`. The Freeboard layer uses `circlePolygon` (64 vertices, same
+  projection as the detector).
+- **Polls never overlap** (a slow server does not get a second request stacked).
+- `public/plotterext/package.json` (`"type": "module"`) lets `node --test` import
+  the ES-module pages; browsers ignore it.
+- **Checked:** `style.json` and the night recolouring pass Freeboard's own
+  `analyzeLayer` (its `data-overlay-style.ts` at d22ab98 with
+  `@maplibre/maplibre-gl-style-spec` 23), all 7 layers drawable; a style with
+  `line-blur` or a broken expression is rejected by the same check. Headless
+  Chromium with the bus's real `HostConnection` as host and MapLibre GL drawing the
+  style: runtime handshake, `setData` (5 vessels, 10 features), night `setLayer`,
+  details window from an overlay feature, reuse for an AIS vessel, "No anchor
+  estimate" for an unknown one. Not yet in a real Freeboard: that is the manual
+  check on the Pi below.
 
 ## Files
 Create `public/shapes.js`, `public/plotterext/{runtime.html,runtime.js,estimate.html,estimate.js,style.json}`,

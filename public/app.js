@@ -5,6 +5,10 @@
   var RESOURCE_URL = '/signalk/v2/api/resources/anchored-vessels'
   var REFRESH_MS = 60000
   var SELF_POSITION_URL = '/signalk/v1/api/vessels/self/navigation/position'
+  var SELF_ANCHOR_URL = '/signalk/v1/api/vessels/self/navigation/anchor'
+  var SELF_COLOR = '#ff4f6d'
+  // Shapes and colours shared with the Freeboard layer (shapes.js).
+  var Shapes = window.AnchorShapes
   var SELF_ZOOM = 14
 
   // World view only until the start view is decided (see placeStartView).
@@ -19,8 +23,15 @@
     attribution: '&copy; OpenSeaMap contributors'
   }).addTo(map)
 
+  // Legend swatches take their colour from the shared palette.
+  var swatches = document.querySelectorAll('#legend [data-style]')
+  for (var i = 0; i < swatches.length; i++) {
+    swatches[i].setAttribute('stroke', Shapes.DAY[swatches[i].getAttribute('data-style')])
+  }
+
   var layer = L.layerGroup().addTo(map)
   var selfMarker = null
+  var selfAnchor = L.layerGroup().addTo(map)
   // Start view: own vessel first, else the estimates, else the world.
   // 'centred' means the map sits on the own vessel; 'fitted' that it shows the estimates.
   var centred = false
@@ -46,7 +57,7 @@
     hasSelf = !!ll
     if (!ll) return
     if (!selfMarker) {
-      selfMarker = L.circleMarker(ll, { radius: 7, color: '#ffffff', weight: 3, fillColor: '#ff4f6d', fillOpacity: 1 })
+      selfMarker = L.circleMarker(ll, { radius: 7, color: '#ffffff', weight: 3, fillColor: SELF_COLOR, fillOpacity: 1 })
         .bindTooltip('own vessel').addTo(map)
     } else {
       selfMarker.setLatLng(ll)
@@ -57,6 +68,37 @@
       centred = true
       fitted = true
     }
+  }
+
+  // Own anchor (set by an anchor alarm plugin): resolves to { ll, radius } or null.
+  function fetchSelfAnchor() {
+    return fetch(SELF_ANCHOR_URL)
+      .then(function (r) { return r.ok ? r.json() : null })
+      .then(function (node) {
+        if (!node) return null
+        var pos = node.position && node.position.value
+        var radius = node.maxRadius && node.maxRadius.value
+        if (!pos || typeof pos.latitude !== 'number' || typeof pos.longitude !== 'number') return null
+        if (!isFinite(pos.latitude) || !isFinite(pos.longitude)) return null
+        return { ll: [pos.latitude, pos.longitude], radius: typeof radius === 'number' && isFinite(radius) && radius > 0 ? radius : null }
+      })
+      .catch(function () { return null })
+  }
+
+  // Drawn in the own-vessel colour so overlaps with other boats' circles stand out.
+  function showSelfAnchor(a) {
+    selfAnchor.clearLayers()
+    if (!a) return
+    if (a.radius) {
+      L.circle(a.ll, { radius: a.radius, color: SELF_COLOR, weight: 2, fillOpacity: 0.06, interactive: false }).addTo(selfAnchor)
+    }
+    L.circleMarker(a.ll, { radius: 4, color: SELF_COLOR, fillColor: SELF_COLOR, fillOpacity: 1 })
+      .bindTooltip('own anchor' + (a.radius ? ', alarm radius ' + Math.round(a.radius) + ' m' : '')).addTo(selfAnchor)
+  }
+
+  // GeoJSON ring ([lon, lat]) to Leaflet points ([lat, lon]).
+  function toLatLngs(ring) {
+    return ring.map(function (c) { return [c[1], c[0]] })
   }
 
   function text(el, s) {
@@ -70,12 +112,6 @@
     if (p.kind === 'area') out.push('area only')
     if (p.quality === 'weak') out.push('weak fit')
     return out
-  }
-
-  function colorFor(p) {
-    if ((p.tags || []).indexOf('possible-mooring-buoy') >= 0) return '#d9a441'
-    if ((p.tags || []).indexOf('possibly-moored') >= 0) return '#7f8fa0'
-    return '#3fb6ff'
   }
 
   // Best effort: ask the tracks plugin for the vessel's recent track.
@@ -94,23 +130,6 @@
       .catch(function () {})
   }
 
-  // Leaflet has no ellipse, so approximate the 95% area with a polygon.
-  function ellipsePoints(center, a, b, bearingDeg) {
-    var pts = []
-    var th = (bearingDeg * Math.PI) / 180 // major axis bearing, clockwise from north
-    var mPerLat = 110540
-    var mPerLon = 111320 * Math.cos((center[0] * Math.PI) / 180)
-    for (var i = 0; i < 64; i++) {
-      var t = (i / 64) * 2 * Math.PI
-      var u = a * Math.cos(t) // along the major axis
-      var v = b * Math.sin(t) // across it
-      var east = u * Math.sin(th) + v * Math.cos(th)
-      var north = u * Math.cos(th) - v * Math.sin(th)
-      pts.push([center[0] + north / mPerLat, center[1] + east / mPerLon])
-    }
-    return pts
-  }
-
   function render(features) {
     layer.clearLayers()
     var list = document.getElementById('list')
@@ -119,18 +138,23 @@
     features.forEach(function (f) {
       var p = f.properties
       var ll = [f.geometry.coordinates[1], f.geometry.coordinates[0]]
-      var color = colorFor(p)
+      var color = Shapes.colorFor(p)
       var isArea = p.kind === 'area'
       var title
       var note
       if (isArea) {
         // No anchor point could be resolved: show the occupied area as a dashed ellipse.
-        L.polygon(ellipsePoints(ll, p.area.semiMajorM, p.area.semiMinorM, p.area.bearingDeg),
-          { color: color, weight: 2, dashArray: '6 4', fillOpacity: 0.06 }).addTo(layer)
+        L.polygon(toLatLngs(Shapes.ellipsePolygon(f.geometry.coordinates, p.area.semiMajorM, p.area.semiMinorM, p.area.bearingDeg)),
+          { color: color, weight: 2, dashArray: '6 4', fillOpacity: 0.06, smoothFactor: 0 }).addTo(layer)
         title = (p.name || p.mmsi) + ', area ' + p.area.semiMajorM + ' x ' + p.area.semiMinorM + ' m'
         note = 'Long stay with a swing, but the anchor position cannot be placed from the track alone.'
       } else {
-        L.circle(ll, { radius: p.radiusMeters, color: color, weight: 2, fillOpacity: 0.08 }).addTo(layer)
+        // Solid for a strong fit, dotted for a weak one (same as the Freeboard layer).
+        // Leaflet draws a true circle; the Freeboard layer uses Shapes.circlePolygon.
+        L.circle(ll, {
+          radius: p.radiusMeters, color: color, weight: 2, fillOpacity: 0.08,
+          dashArray: p.quality === 'strong' ? null : '1 6', lineCap: 'round'
+        }).addTo(layer)
         title = (p.name || p.mmsi) + ', r ' + p.radiusMeters + ' m'
         note = 'Estimated from position tracks and headings only; may be a mooring buoy or other fixed mooring.'
       }
@@ -164,6 +188,8 @@
     // Own position first, so the start view is settled before the estimates can fit.
     fetchSelfPosition()
       .then(showSelf)
+      .then(fetchSelfAnchor)
+      .then(showSelfAnchor)
       .then(function () { return fetch(RESOURCE_URL) })
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status)

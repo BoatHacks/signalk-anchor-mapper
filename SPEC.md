@@ -36,8 +36,10 @@ the author's: other regions and AIS densities, servers without the tracks plugin
   heading. Ship type codes 36 (sailing) and 37 (pleasure craft) identify yachts.
 - **SignalK** defines `navigation.anchor.position` and `navigation.anchor.maxRadius`
   for the own vessel's anchor watch. This plugin publishes the same paths on *other*
-  vessels' contexts, so any client that already draws an own-vessel anchor circle can
-  draw others' with no changes.
+  vessels' contexts, as the standard place for the data. That alone does not put
+  circles on a chart: Freeboard-SK (checked 2026-11-19) parses those paths for AIS
+  vessels but only draws the own anchor. So the plugin also brings its own map
+  output: a Freeboard-SK plotter extension (§7) and the webapp.
 - Nobody transmits where their anchor is. Everything here is inferred from the track,
   and that inference was validated offline against about 1.9 million recorded fixes
   (see [docs/VALIDATION.md](docs/VALIDATION.md)).
@@ -237,6 +239,10 @@ Feature: a Point at the anchor (or area centre), with properties `context`, `mms
 `since`, `dwellHours`. Writes are refused. Resource providers are chosen over plugin
 routes because they are readable under the server's read-only access setting.
 
+A second read-only provider, type `plotterExtensions`, serves one resource,
+`signalk-anchor-mapper`: the Freeboard-SK plotter extension manifest (§7). It lists
+the manifest only while the plugin runs.
+
 ### 6.3 Atlas (post-1.0)
 Read-only access to anchoring records, filterable by bounding box and time range,
 and to spots computed from them. **(Shape to be fixed in ARCHITECTURE.md.)**
@@ -246,6 +252,25 @@ and to spots computed from them. **(Shape to be fixed in ARCHITECTURE.md.)**
 
 ## 7. User Interface
 
+### 7.1 Freeboard-SK layer
+Freeboard-SK 3.4 and later shows the estimates on its own chart, as a plugin layer
+called "Anchored vessels" (Plotter Extensions API, `overlays.data`):
+- Anchor estimate: filled circle of the swing radius with a dot at the anchor.
+  Solid outline for a strong fit, dotted for a weak one.
+- Area estimate: dashed ellipse with a small dot at its centre.
+- Colour by tag, the same as the webapp: blue normal, grey `possibly-moored`,
+  amber `possible-mooring-buoy` (orange overlap and red dragging once alerts exist).
+  Darker colours in Freeboard's night mode.
+- Name and radius (or area size) as a label from zoom 14; the layer itself from
+  zoom 10.
+- Tapping an anchor dot, or "Anchor estimate" in an AIS vessel's popover, opens a
+  window with the estimate's details, or "No anchor estimate for this vessel".
+- Updated every 60 s. Freeboard reads the manifest when it connects, so after
+  enabling the plugin Freeboard needs a reload. The layer sits above routes and
+  notes and never covers AIS targets, the own vessel or alarms (Freeboard's rule).
+- Older Freeboard versions and other plotters simply do not show it.
+
+### 7.2 Webapp
 A buildless webapp (listed in the SignalK webapp menu):
 - Opens centred on the own vessel's `navigation.position` (zoom 14), with a marker
   for the own vessel. Only without an own position does it fall back to fitting the
@@ -253,8 +278,11 @@ A buildless webapp (listed in the SignalK webapp menu):
   the own position appears later, the map centres on it once, unless the user has
   already panned.
 - OpenStreetMap base map with the OpenSeaMap seamark overlay.
-- Each anchor estimate as a circle of its swing radius; each area estimate as its
-  ellipse with the anchor-bearing hint.
+- Each anchor estimate as a circle of its swing radius (dotted for a weak fit);
+  each area estimate as its dashed ellipse. Same colours as the Freeboard layer,
+  from shared code, with a legend.
+- The own anchor and its alarm radius, when an anchor alarm plugin has set
+  `navigation.anchor.position` / `maxRadius` on the own vessel, so overlaps show.
 - The vessel's recent track, when the tracks plugin is installed.
 - Tags and quality listed per vessel, so doubtful estimates are visibly doubtful.
 
@@ -315,7 +343,7 @@ radius and count.
 - Webapp opens on the own vessel's position (§7, decided 2026-11-19). Done.
 - Estimates drawn as vector shapes in Freeboard-SK (≥ 3.4) through a plotter
   extension data overlay, sharing shape code with the webapp (§7, decided
-  2026-11-19; docs/plans/07-map-output.md).
+  2026-11-19; docs/plans/07-map-output.md). Built; manual check on the Pi open.
 - Published on npm and the SignalK plugin registry (§1.1).
 - **Live validation gate:** at least 2 weeks running on the author's own server
   before release. Checked against class A vessels' reported navigational status
@@ -352,7 +380,13 @@ radius and count.
   user can judge; two config switches hide them for those who prefer.
 - **No harbor polygons.** They'd need per-region data; "still" + tags removes all but
   one harbor false positive in testing.
-- **Reuse `navigation.anchor.*` on other vessels.** Existing clients draw them for free.
+- **Reuse `navigation.anchor.*` on other vessels.** They are the standard paths for
+  the data, so any client can read them. They do not get drawn for free, though:
+  Freeboard-SK only draws the own anchor (checked 2026-11-19), hence the next point.
+- **Own Freeboard layer through the Plotter Extensions API (decided 2026-11-19).**
+  A data overlay with our own style, not `regions` (fixed preset styles, no live
+  refresh, would mix into the user's own regions) or notes (points only). Details
+  and rejected options in docs/plans/07-map-output.md.
 - **Resource provider over plugin routes** for anonymous read access.
 - **No runtime dependencies**, plain Node, buildless webapp: runs on a Pi, easy to audit.
 - **Written for any SignalK user (decided 2026-11-18).** The plugin is published,

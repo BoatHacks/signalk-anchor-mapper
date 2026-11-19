@@ -13,11 +13,15 @@ function fakeApp() {
     status: '',
     errors: [],
     resources: null,
+    providers: {},
     handler: null,
     error: (m) => app.errors.push(m),
     setPluginStatus: (s) => (app.status = s),
     handleMessage: (id, msg) => messages.push({ id, msg }),
-    registerResourceProvider: (p) => (app.resources = p),
+    registerResourceProvider: (p) => {
+      app.providers[p.type] = p
+      if (p.type === 'anchored-vessels') app.resources = p
+    },
     subscriptionmanager: {
       subscribe: (sub, unsubs, onErr, onDelta) => {
         app.handler = onDelta
@@ -91,4 +95,25 @@ test('a vessel with only an occupied area gets an estimate but no anchor positio
   assert.ok(est.value.area.semiMajorM > 0)
   assert.strictEqual(pos.value, null, 'no anchor position published')
   plugin.stop()
+})
+
+test('plugin serves the Freeboard plotter extension manifest only while running', async () => {
+  const app = fakeApp()
+  const plugin = createPlugin(app)
+  plugin.start({})
+  const prov = app.providers.plotterExtensions
+  assert.ok(prov, 'plotterExtensions provider registered on start')
+  const list = await prov.methods.listResources({})
+  assert.deepStrictEqual(Object.keys(list), ['signalk-anchor-mapper'])
+  const m = list['signalk-anchor-mapper']
+  assert.strictEqual(m.apiVersion, '1')
+  assert.strictEqual(m.version, require('../package.json').version)
+  assert.deepStrictEqual(await prov.methods.getResource('signalk-anchor-mapper'), m)
+  await assert.rejects(prov.methods.getResource('other'))
+  await assert.rejects(prov.methods.setResource('signalk-anchor-mapper', {}))
+  await assert.rejects(prov.methods.deleteResource('signalk-anchor-mapper'))
+  plugin.stop()
+  assert.deepStrictEqual(await prov.methods.listResources({}), {})
+  await assert.rejects(prov.methods.getResource('signalk-anchor-mapper'))
+  assert.deepStrictEqual(app.errors, [])
 })

@@ -27,12 +27,15 @@ fixes, so it is tested without a server. A thin plugin shell does all SignalK I/
  │        ▼                                                          │
  │  ┌───────────┐──▶ deltas: navigation.anchor.* on other vessels    │
  │  │ Publisher │──▶ resource provider: anchored-vessels (GeoJSON)   │
- │  └───────────┘                                                    │
+ │  └───────────┘──▶ resource provider: plotterExtensions (manifest) │
  └───────────────────────────────────▲───────────────────────────────┘
                                      │ HTTP (resources, tracks)
-                              ┌──────┴──────┐
-                              │  Webapp     │  Leaflet + OSM/OpenSeaMap tiles
-                              └─────────────┘
+              ┌──────────────────────┴───────────────────┐
+       ┌──────┴──────┐                          ┌────────┴────────────┐
+       │  Webapp     │ Leaflet + OSM/OpenSeaMap │ Freeboard-SK ≥ 3.4  │
+       └─────────────┘                          │ runtime iframe ──▶  │
+          both use public/shapes.js             │ overlay.setData     │
+                                                └─────────────────────┘
 ```
 
 ## 2. System Components
@@ -89,10 +92,34 @@ Emits deltas on `notifications.anchorMapper.{overlap,dragging}.<mmsi>` on self.
 Static Leaflet page served by the SignalK webapp mechanism. Polls the own
 `navigation.position` (`/signalk/v1/api/vessels/self/navigation/position`) and the
 resource provider every 60 s. Start view: own vessel at zoom 14; without it, the
-estimates' bounds; with neither, the world. It draws circles, ellipses and tags, and fetches one vessel's
+estimates' bounds; with neither, the world. It draws circles, ellipses (via `shapes.js`), the own
+anchor circle, a legend and tags, and fetches one vessel's
 track from the tracks plugin on demand. Plain ES2015 with no optional chaining,
 because some chart plotter browsers are old. Leaflet is vendored; tiles come from the
 internet.
+
+### 2.11 Shapes (`public/shapes.js`)
+Pure functions shared by the webapp, the Freeboard extension and the tests: circle
+and ellipse polygons (same projection as `src/geo.js`), the colour per tag/alert
+(`styleOf`, day and night palettes), and `toOverlayFeatures`, which turns the
+`anchored-vessels` resources into the overlay's FeatureCollection (a Polygon
+`<mmsi>:shape` and a Point `<mmsi>:anchor` per vessel). A classic ES2015 script:
+`window.AnchorShapes` in a browser, `module.exports` under Node.
+
+### 2.12 Freeboard-SK extension (`src/plotterext.js`, `public/plotterext/`)
+`buildManifest(version)` is the Plotter Extensions API manifest, served by a second
+read-only resource provider (type `plotterExtensions`) while the plugin runs. The
+pages are served by the webapp mount at `/signalk-anchor-mapper/plotterext/`:
+- `style.json`: MapLibre v8 style, one inline `geojson` source `estimates`, seven
+  layers using only what Freeboard draws (checked by `test/plotterext.test.js`).
+- `runtime.html` / `runtime.js`: background iframe. Fetches the resources every
+  60 s, sends `overlay.setData` when they changed, recolours with
+  `overlay.setLayer` on `nightMode.changed`, logs Freeboard's `skippedLayers`.
+- `estimate.html` / `estimate.js`: details window for the `details`
+  (overlay feature) and `vessel` (AIS vessel) actions.
+- `vendor/signalk-plotterext-bus/`: the bus client (MIT, 0.27.0), vendored.
+These files are ES modules (`public/plotterext/package.json` says so for Node); they
+only ever run inside Freeboard.
 
 ## 3. Data Models
 
@@ -127,6 +154,7 @@ AlertState = { overlap: 'normal'|'active', dragging: 'normal'|'active',
 | Tests | `node:test`, synthetic tracks | Built in, no dev dependencies |
 | CI | SignalK `plugin-ci.yml` reusable workflow | Same checks the registry scores |
 | Webapp | Leaflet 1.x, vendored | Works without a CDN on board |
+| Freeboard layer | Plotter Extensions API v1 data overlay; `signalk-plotterext-bus` 0.27.0 vendored | Vector shapes on the plotter most SignalK users run; no build step, no npm dependency |
 | Map tiles | OpenStreetMap + OpenSeaMap seamarks | Free, show buoys and harbours |
 
 ## 5. Integration Points
@@ -136,9 +164,10 @@ AlertState = { overlap: 'normal'|'active', dragging: 'normal'|'active',
 | SignalK subscriptions | in | `vessels.*`: `navigation.position`, `navigation.headingTrue` (10 s period); self: `navigation.anchor.position`, `navigation.anchor.maxRadius` (1.0.0) |
 | SignalK deltas (`app.handleMessage`) | out | `navigation.anchor.{position,maxRadius,estimate}` on other vessels; notifications on self (1.0.0) |
 | `app.getPath` | in | vessel `name` for display and alert messages |
-| Resource provider API (v2) | out | `anchored-vessels`, read only |
+| Resource provider API (v2) | out | `anchored-vessels`, read only; `plotterExtensions` (manifest), read only |
+| Freeboard-SK ≥ 3.4 | out | Plotter Extensions API v1: `overlays.data`, `background.iframe`, optional `actions`, `actions.overlay`, `windows`, `nightMode` |
 | Tracks plugin | in, optional | Webapp: `GET /signalk/v1/api/vessels/<id>/track`. Seeder: bulk fetch of recent tracks; exact endpoint and how a plugin reaches it from inside the server to be confirmed when building (§9) |
-| SignalK REST (v1) | in, webapp | `GET /signalk/v1/api/vessels/self/navigation/position` for the start view and own-vessel marker |
+| SignalK REST (v1) | in, webapp | `GET /signalk/v1/api/vessels/self/navigation/position` for the start view and own-vessel marker; `.../self/navigation/anchor` for the own anchor circle |
 | Tile servers | webapp only | `tile.openstreetmap.org`, `tiles.openseamap.org` |
 
 ## 6. Security Considerations
@@ -147,8 +176,10 @@ AlertState = { overlap: 'normal'|'active', dragging: 'normal'|'active',
   value is checked with `Number.isFinite` before use; spikes are filtered; per-vessel
   errors are caught. A malicious AIS sender can at most create a false estimate or a
   false alert about itself.
-- **Read-only surface.** The resource provider refuses writes. No plugin HTTP routes.
-  Resource reads follow the server's own access settings.
+- **Read-only surface.** Both resource providers refuse writes. No plugin HTTP routes.
+  Resource reads follow the server's own access settings. The Freeboard extension
+  pages are static files on the webapp mount; they read only the same resources,
+  with the user's own session.
 - **No outbound traffic from the plugin.** The seeder talks only to the local
   server. Only the webapp's browser fetches tiles.
 - **Alerts are advisory.** The notification text says it is an estimate; the plugin
@@ -168,7 +199,12 @@ src/
   seed.js             (1.0.0) seed tracks from the tracks plugin
   alerts.js           (1.0.0) overlap and drag state machine
   publish.js          (1.0.0, extracted) deltas and resource provider
-public/               webapp (index.html, app.js, vendor/leaflet)
+  plotterext.js       Freeboard-SK extension manifest
+public/
+  index.html, app.js  webapp
+  shapes.js           shapes and colours shared by webapp, extension and tests
+  plotterext/         Freeboard-SK extension: style, runtime, details window, vendored bus
+  vendor/leaflet/
 test/                 node:test suites, one per src module plus plugin.test.js
 docs/VALIDATION.md    measurements behind every threshold
 SPEC.md, ARCHITECTURE.md, CHANGELOG.md, README.md

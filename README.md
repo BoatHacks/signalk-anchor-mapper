@@ -42,7 +42,18 @@ A read-only resource provider also serves the current estimates as GeoJSON featu
 
 ## Webapp
 
-`public/` is a buildless Leaflet webapp with the OpenStreetMap base map and the OpenSeaMap seamark layer. It opens centred on your own vessel's `navigation.position`; without a position fix it shows the estimates instead, and re-centres on your boat once a fix arrives (unless you have already moved the map). It draws each estimate as a circle with its track (fetched from the SignalK tracks plugin when that is installed) and lists the tags. Leaflet is vendored in `public/vendor/leaflet`. Tiles load from the internet, so the map background is blank offline.
+`public/` is a buildless Leaflet webapp with the OpenStreetMap base map and the OpenSeaMap seamark layer. It opens centred on your own vessel's `navigation.position`; without a position fix it shows the estimates instead, and re-centres on your boat once a fix arrives (unless you have already moved the map). It draws each estimate as a circle or ellipse in the same style as the Freeboard layer (shapes and colours come from the shared `public/shapes.js`), with a legend, its track (fetched from the SignalK tracks plugin when that is installed) and the tags. Your own anchor and alarm radius are drawn in red when an anchor alarm plugin has set them, so overlapping swing circles are easy to spot. Leaflet is vendored in `public/vendor/leaflet`. Tiles load from the internet, so the map background is blank offline.
+
+## Seeing anchors in Freeboard-SK
+
+With Freeboard-SK **3.4 or later** the estimates appear on Freeboard's own chart, through its Plotter Extensions API. Nothing to install besides this plugin.
+
+1. Enable the plugin, then **reload Freeboard** (it reads plugin layers when it connects).
+2. Open the Chart List: the layer **Anchored vessels** is under *Plugin layers*, with its own show/hide and opacity. It draws from zoom 10.
+3. Circles and ellipses look as in the webapp: solid circle for a strong fit, dotted for a weak one, dashed ellipse for an area only; blue, grey for `possibly-moored`, amber for `possible-mooring-buoy`. Names and radii appear from zoom 14. Darker colours in night mode.
+4. Tap an anchor dot, or choose **Anchor estimate** in an AIS vessel's popover, for the details: method, quality, tags, since when, and the caveats.
+
+The layer refreshes every minute. Older Freeboard versions and other chart plotters simply do not show it; the published `navigation.anchor.*` data is there for any client that wants to draw it. If a shape is missing, Freeboard's browser console says which style layer it skipped (look for `anchor-mapper:`).
 
 ## Configuration
 
@@ -68,7 +79,7 @@ All in the admin UI under Server, Plugin Config, Anchor Mapper:
 npm test
 ```
 
-Plain Node, no runtime dependencies. The pure detection code lives in `src/` and is tested with synthetic tracks (`node:test`).
+Plain Node, no runtime dependencies. The pure detection code lives in `src/` and is tested with synthetic tracks (`node:test`). The Freeboard extension lives in `public/plotterext/`; its bus client is vendored from `signalk-plotterext-bus` (MIT).
 
 ## License
 

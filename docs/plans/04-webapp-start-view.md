@@ -31,7 +31,8 @@ before the estimates on every refresh, which also moves the own-vessel marker.
 - [x] Self position → estimates bounds → world fallback (checked headless with mocked
       endpoints: self+estimates, estimates only, neither, late fix, late fix after pan)
 - [x] Own-vessel marker
-- [ ] Own anchor circle
+- [x] Own anchor circle (built with plan 7: `/signalk/v1/api/vessels/self/navigation/anchor`,
+      drawn in the own-vessel colour)
 - [ ] Manual check on the Pi, screenshot for README/registry
 
 ## Files

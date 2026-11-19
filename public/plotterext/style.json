@@ -1,0 +1,369 @@
+{
+  "version": 8,
+  "sources": {
+    "estimates": {
+      "type": "geojson",
+      "data": {
+        "type": "FeatureCollection",
+        "features": []
+      }
+    }
+  },
+  "layers": [
+    {
+      "id": "area-fill",
+      "type": "fill",
+      "source": "estimates",
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "get",
+            "part"
+          ],
+          "shape"
+        ],
+        [
+          "==",
+          [
+            "get",
+            "kind"
+          ],
+          "area"
+        ]
+      ],
+      "paint": {
+        "fill-color": [
+          "match",
+          [
+            "get",
+            "style"
+          ],
+          "dragging",
+          "#ff3b30",
+          "overlap",
+          "#ff8c1a",
+          "buoy",
+          "#d9a441",
+          "moored",
+          "#7f8fa0",
+          "#3fb6ff"
+        ],
+        "fill-opacity": 0.06
+      }
+    },
+    {
+      "id": "area-line",
+      "type": "line",
+      "source": "estimates",
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "get",
+            "part"
+          ],
+          "shape"
+        ],
+        [
+          "==",
+          [
+            "get",
+            "kind"
+          ],
+          "area"
+        ]
+      ],
+      "layout": {
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": [
+          "match",
+          [
+            "get",
+            "style"
+          ],
+          "dragging",
+          "#ff3b30",
+          "overlap",
+          "#ff8c1a",
+          "buoy",
+          "#d9a441",
+          "moored",
+          "#7f8fa0",
+          "#3fb6ff"
+        ],
+        "line-width": 2,
+        "line-dasharray": [
+          3,
+          2
+        ]
+      }
+    },
+    {
+      "id": "circle-fill",
+      "type": "fill",
+      "source": "estimates",
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "get",
+            "part"
+          ],
+          "shape"
+        ],
+        [
+          "==",
+          [
+            "get",
+            "kind"
+          ],
+          "anchor"
+        ]
+      ],
+      "paint": {
+        "fill-color": [
+          "match",
+          [
+            "get",
+            "style"
+          ],
+          "dragging",
+          "#ff3b30",
+          "overlap",
+          "#ff8c1a",
+          "buoy",
+          "#d9a441",
+          "moored",
+          "#7f8fa0",
+          "#3fb6ff"
+        ],
+        "fill-opacity": 0.08
+      }
+    },
+    {
+      "id": "circle-line",
+      "type": "line",
+      "source": "estimates",
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "get",
+            "part"
+          ],
+          "shape"
+        ],
+        [
+          "==",
+          [
+            "get",
+            "kind"
+          ],
+          "anchor"
+        ],
+        [
+          "==",
+          [
+            "get",
+            "quality"
+          ],
+          "strong"
+        ]
+      ],
+      "layout": {
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": [
+          "match",
+          [
+            "get",
+            "style"
+          ],
+          "dragging",
+          "#ff3b30",
+          "overlap",
+          "#ff8c1a",
+          "buoy",
+          "#d9a441",
+          "moored",
+          "#7f8fa0",
+          "#3fb6ff"
+        ],
+        "line-width": 2
+      }
+    },
+    {
+      "id": "circle-line-weak",
+      "type": "line",
+      "source": "estimates",
+      "filter": [
+        "all",
+        [
+          "==",
+          [
+            "get",
+            "part"
+          ],
+          "shape"
+        ],
+        [
+          "==",
+          [
+            "get",
+            "kind"
+          ],
+          "anchor"
+        ],
+        [
+          "!=",
+          [
+            "get",
+            "quality"
+          ],
+          "strong"
+        ]
+      ],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": [
+          "match",
+          [
+            "get",
+            "style"
+          ],
+          "dragging",
+          "#ff3b30",
+          "overlap",
+          "#ff8c1a",
+          "buoy",
+          "#d9a441",
+          "moored",
+          "#7f8fa0",
+          "#3fb6ff"
+        ],
+        "line-width": 2,
+        "line-dasharray": [
+          0.5,
+          2
+        ]
+      }
+    },
+    {
+      "id": "anchor-point",
+      "type": "circle",
+      "source": "estimates",
+      "filter": [
+        "==",
+        [
+          "get",
+          "part"
+        ],
+        "anchor"
+      ],
+      "paint": {
+        "circle-color": [
+          "match",
+          [
+            "get",
+            "style"
+          ],
+          "dragging",
+          "#ff3b30",
+          "overlap",
+          "#ff8c1a",
+          "buoy",
+          "#d9a441",
+          "moored",
+          "#7f8fa0",
+          "#3fb6ff"
+        ],
+        "circle-radius": [
+          "case",
+          [
+            "==",
+            [
+              "get",
+              "kind"
+            ],
+            "area"
+          ],
+          3,
+          4.5
+        ],
+        "circle-opacity": [
+          "case",
+          [
+            "==",
+            [
+              "get",
+              "kind"
+            ],
+            "area"
+          ],
+          0.5,
+          1
+        ],
+        "circle-stroke-color": "#ffffff",
+        "circle-stroke-width": 1
+      }
+    },
+    {
+      "id": "label",
+      "type": "symbol",
+      "source": "estimates",
+      "minzoom": 14,
+      "filter": [
+        "==",
+        [
+          "get",
+          "part"
+        ],
+        "anchor"
+      ],
+      "layout": {
+        "text-field": [
+          "get",
+          "label"
+        ],
+        "text-size": 11,
+        "text-anchor": "top",
+        "text-offset": [
+          0,
+          0.8
+        ],
+        "text-max-width": 12
+      },
+      "paint": {
+        "text-color": [
+          "match",
+          [
+            "get",
+            "style"
+          ],
+          "dragging",
+          "#ff3b30",
+          "overlap",
+          "#ff8c1a",
+          "buoy",
+          "#d9a441",
+          "moored",
+          "#7f8fa0",
+          "#3fb6ff"
+        ],
+        "text-halo-color": "rgba(11,17,24,0.85)",
+        "text-halo-width": 1.2
+      }
+    }
+  ]
+}

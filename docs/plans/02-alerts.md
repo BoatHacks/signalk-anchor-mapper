@@ -42,6 +42,9 @@ the vessel.
 - [ ] `src/alerts.js` + tests
 - [ ] Config schema: the six alert settings from SPEC §9
 - [ ] Wire into `index.js` (self subscription, per-fix hook, per-cycle hook)
+- [ ] Put the active alerts on each `anchored-vessels` feature as `alerts: ['overlap'|'dragging']`.
+      The map side is ready (plan 7): `styleOf` in `public/shapes.js` already colours
+      them orange/red in the webapp and the Freeboard layer; add a test there.
 - [ ] README section on alerts, including "advisory, not an anchor watch"
 - [ ] `npm test`
 

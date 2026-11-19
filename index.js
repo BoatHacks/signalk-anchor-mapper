@@ -3,6 +3,8 @@
 const { TrackStore } = require('./src/store')
 const { analyzeTrack, DEFAULTS } = require('./src/detector')
 const { tagRepeatUse } = require('./src/repeat-use')
+const plotterext = require('./src/plotterext')
+const { version } = require('./package.json')
 
 const MMSI_RE = /mmsi:(\d+)/
 const RESOURCE_TYPE = 'anchored-vessels'
@@ -20,6 +22,8 @@ module.exports = function (app) {
   let published = new Map() // vesselContext -> last published estimate
   let estimates = new Map() // vesselContext -> current estimate (for the resource provider)
   let headings = new Map() // vesselContext -> { t, h } latest true heading in radians
+  let running = false
+  const manifest = plotterext.buildManifest(version)
 
   plugin.schema = {
     type: 'object',
@@ -260,11 +264,33 @@ module.exports = function (app) {
     } catch (err) {
       app.error(`resource provider registration failed: ${err.message}`)
     }
+    // Freeboard-SK reads this when it connects and draws the estimates as a plugin layer.
+    try {
+      app.registerResourceProvider({
+        type: plotterext.RESOURCE_TYPE,
+        methods: {
+          listResources: async () => (running ? { [plotterext.PLUGIN_ID]: manifest } : {}),
+          getResource: async (id) => {
+            if (!running || id !== plotterext.PLUGIN_ID) throw new Error(`No plotter extension ${id}`)
+            return manifest
+          },
+          setResource: async () => {
+            throw new Error('read only')
+          },
+          deleteResource: async () => {
+            throw new Error('read only')
+          }
+        }
+      })
+    } catch (err) {
+      app.error(`plotter extension registration failed: ${err.message}`)
+    }
   }
 
   plugin.start = function (options) {
     options = options || {}
     store = new TrackStore({ maxAgeS: (options.historyHours ?? 12) * 3600 })
+    running = true
     registerResources()
     app.subscriptionmanager.subscribe(
       {
@@ -290,6 +316,7 @@ module.exports = function (app) {
   }
 
   plugin.stop = function () {
+    running = false
     if (timer) clearInterval(timer)
     timer = null
     unsubscribes.forEach((f) => f())

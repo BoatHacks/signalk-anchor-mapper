@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anchor estimate</title>
+<style>
+  :root { --bg: #0b1118; --fg: #d6e2ee; --muted: #8a9bab; --line: #1b2733; --head: #8fb4d6; }
+  html.night { --bg: #0a0606; --fg: #b06a5e; --muted: #7a4a42; --line: #2a1614; --head: #a0574b; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; }
+  main { padding: 10px 12px; }
+  h1 { font-size: 15px; margin: 0 0 8px; color: var(--head); }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; vertical-align: top; padding: 3px 0; border-top: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: normal; width: 38%; padding-right: 8px; }
+  p { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
+</style>
+</head>
+<body>
+<main id="out"><p>Loading…</p></main>
+<script type="module">
+  import { connectExtension } from './vendor/signalk-plotterext-bus/extension.js'
+  import { startEstimate } from './estimate.js'
+
+  const out = document.getElementById('out')
+  function el(tag, text) {
+    const e = document.createElement(tag)
+    if (text != null) e.textContent = text
+    return e
+  }
+  function render(view) {
+    out.textContent = ''
+    if (view.state === 'estimate') {
+      out.appendChild(el('h1', view.title))
+      const table = el('table')
+      for (const [k, v] of view.rows) {
+        const tr = el('tr')
+        tr.appendChild(el('th', k))
+        tr.appendChild(el('td', v))
+        table.appendChild(tr)
+      }
+      out.appendChild(table)
+      out.appendChild(el('p', view.note))
+    } else if (view.state === 'none') {
+      if (view.name) out.appendChild(el('h1', view.name))
+      out.appendChild(el('p', 'No anchor estimate for this vessel.'))
+    } else {
+      out.appendChild(el('p', 'Could not load the estimate: ' + view.message))
+    }
+  }
+
+  connectExtension()
+    .then(async (client) => {
+      if (client.hasCapability('nightMode')) {
+        const apply = (s) => document.documentElement.classList.toggle('night', !!(s && s.enabled))
+        client.subscribe(['nightMode.changed'], (_n, s) => apply(s)).catch(() => {})
+        client.nightMode.get().then(apply).catch(() => {})
+      }
+      await startEstimate({ client, fetch: window.fetch.bind(window), render })
+    })
+    .catch((err) => render({ state: 'error', message: err.message }))
+</script>
+</body>
+</html>

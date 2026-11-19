@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Anchor Mapper runtime</title>
+<!-- Headless background runtime of the Freeboard-SK plotter extension. -->
+<script src="../shapes.js"></script>
+<script type="module">
+  import { connectExtension } from './vendor/signalk-plotterext-bus/extension.js'
+  import { startRuntime } from './runtime.js'
+
+  connectExtension()
+    .then((client) => startRuntime({
+      client,
+      shapes: window.AnchorShapes,
+      fetch: window.fetch.bind(window),
+      setInterval: window.setInterval.bind(window),
+      clearInterval: window.clearInterval.bind(window),
+      log: console
+    }))
+    .catch((err) => console.warn('anchor-mapper: no plotter host:', err.message))
+</script>
+</head>
+<body></body>
+</html>
