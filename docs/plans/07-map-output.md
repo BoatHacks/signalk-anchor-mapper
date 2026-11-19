@@ -11,6 +11,9 @@ Researched 2026-11-19 against Freeboard-SK `master` (3.5.0-beta.2, d22ab98) and 
 docs `docs/api/plotter-extensions-api.md` and
 `docs/api/plotter_extension_provider_plugins.md`.
 
+Decided 2026-11-19 (Tobi): part of 1.0.0, built before the two-week live
+validation so the validation also covers the Freeboard layer.
+
 ## SPEC / ARCHITECTURE sections
 - SPEC §1.2 (the "existing clients draw them for free" claim), §6.2, §7, §12
 - ARCHITECTURE §2.7, §2.10, §5, §6, §7

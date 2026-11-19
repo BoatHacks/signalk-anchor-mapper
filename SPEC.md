@@ -313,6 +313,9 @@ radius and count.
 - Overlap and drag alerts (§2.7, decided 2026-11-18).
 - Seed tracks from the tracks plugin on start (§8, decided 2026-11-18).
 - Webapp opens on the own vessel's position (§7, decided 2026-11-19). Done.
+- Estimates drawn as vector shapes in Freeboard-SK (≥ 3.4) through a plotter
+  extension data overlay, sharing shape code with the webapp (§7, decided
+  2026-11-19; docs/plans/07-map-output.md).
 - Published on npm and the SignalK plugin registry (§1.1).
 - **Live validation gate:** at least 2 weeks running on the author's own server
   before release. Checked against class A vessels' reported navigational status
