@@ -7,7 +7,7 @@ const RESOURCE_TYPE = 'anchored-vessels'
 /**
  * Feature served by the `anchored-vessels` resource provider (SPEC 6.2).
  */
-function toFeature(app, e) {
+function toFeature(app, e, alerts) {
   const name = app.getPath && app.getPath(`${e.context}.name`) && app.getPath(`${e.context}.name`).value
   return {
     type: 'Feature',
@@ -24,7 +24,8 @@ function toFeature(app, e) {
       quality: e.quality,
       tags: e.tags,
       since: e.since,
-      dwellHours: e.dwellHours
+      dwellHours: e.dwellHours,
+      alerts: alerts || []
     }
   }
 }
@@ -126,11 +127,11 @@ function createPublisher(app, pluginId, deps = {}) {
       app.registerResourceProvider({
         type: RESOURCE_TYPE,
         methods: {
-          listResources: async () => Object.fromEntries([...published.values()].map((e) => [e.id, toFeature(app, e)])),
+          listResources: async () => Object.fromEntries([...published.values()].map((e) => [e.id, toFeature(app, e, deps.alertsOf ? deps.alertsOf(e.id) : [])])),
           getResource: async (id) => {
             const e = [...published.values()].find((x) => x.id === id)
             if (!e) throw new Error(`No anchored vessel ${id}`)
-            return toFeature(app, e)
+            return toFeature(app, e, deps.alertsOf ? deps.alertsOf(e.id) : [])
           },
           setResource: async () => {
             throw new Error('read only')

@@ -190,3 +190,80 @@ test('stopping the plugin while seeding drops the seeded tracks', async () => {
   assert.deepStrictEqual(app.errors, [])
   assert.deepStrictEqual(app.messages, [])
 })
+
+function swingingVessel(app, start, ctx, proj) {
+  const hours = 5
+  for (let i = 0; i <= hours * 120; i++) {
+    const a = (i / (hours * 120)) * 5
+    const p = proj.toLatLon(70 * Math.cos(a), 70 * Math.sin(a))
+    const ts = new Date(start + i * 30000 - hours * 3600 * 1000).toISOString()
+    app.handler({ context: ctx, updates: [{ timestamp: ts, values: [{ path: 'navigation.position', value: p }] }] })
+  }
+}
+
+test('overlap and drag notifications go out on self, and clear on stop', async (t) => {
+  const app = fakeApp()
+  const plugin = createPlugin(app)
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'] })
+  const start = Date.parse('2026-01-01T00:00:00Z')
+  t.mock.timers.setTime(start)
+  plugin.start({})
+  const proj = makeProjection(40.6, 0.6)
+  const ctx = 'vessels.urn:mrn:imo:mmsi:123456789'
+  swingingVessel(app, start, ctx, proj)
+  // own anchor 110 m east of the other vessel's anchor, 50 m alarm radius: the circles overlap
+  const own = proj.toLatLon(110, 0)
+  app.handler({
+    context: 'vessels.self',
+    updates: [{ values: [{ path: 'navigation.anchor.position', value: own }, { path: 'navigation.anchor.maxRadius', value: 50 }] }]
+  })
+  t.mock.timers.tick(5 * 60 * 1000)
+  const notes = () => app.messages.filter((m) => m.msg.context === 'vessels.self').flatMap((m) => m.msg.updates[0].values)
+  const overlap = notes().find((v) => v.path === 'notifications.anchorMapper.overlap.123456789')
+  assert.ok(overlap, 'overlap notification sent')
+  assert.strictEqual(overlap.value.state, 'warn')
+  assert.deepStrictEqual(overlap.value.method, ['visual'])
+  assert.match(overlap.value.message, /MMSI 123456789/)
+  const feature = await app.resources.methods.getResource('123456789')
+  assert.deepStrictEqual(feature.properties.alerts, ['overlap'])
+
+  // the vessel drifts 80 m past its swing circle for over 90 s: drag alarm, loud as it nears our anchor
+  const outside = proj.toLatLon(150, 0)
+  const fixAt = () =>
+    app.handler({
+      context: ctx,
+      updates: [{ timestamp: new Date(Date.now()).toISOString(), values: [{ path: 'navigation.position', value: outside }] }]
+    })
+  fixAt()
+  t.mock.timers.tick(120 * 1000)
+  fixAt()
+  const drag = notes().find((v) => v.path === 'notifications.anchorMapper.dragging.123456789')
+  assert.ok(drag, 'drag notification sent')
+  assert.strictEqual(drag.value.state, 'alarm')
+  assert.deepStrictEqual(drag.value.method, ['visual', 'sound'])
+  assert.deepStrictEqual((await app.resources.methods.getResource('123456789')).properties.alerts, ['overlap', 'dragging'])
+
+  plugin.stop()
+  const after = notes().filter((v) => v.path.startsWith('notifications.anchorMapper.')).slice(-2)
+  assert.ok(after.every((v) => v.value.state === 'normal'), 'alerts cleared on stop')
+  assert.deepStrictEqual(app.errors, [])
+})
+
+test('alert settings off: no notifications are sent', (t) => {
+  const app = fakeApp()
+  const plugin = createPlugin(app)
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'] })
+  const start = Date.parse('2026-01-01T00:00:00Z')
+  t.mock.timers.setTime(start)
+  plugin.start({ alerts: { overlapEnabled: false, dragEnabled: false } })
+  const proj = makeProjection(40.6, 0.6)
+  swingingVessel(app, start, 'vessels.urn:mrn:imo:mmsi:123456789', proj)
+  app.handler({
+    context: 'vessels.self',
+    updates: [{ values: [{ path: 'navigation.anchor.position', value: proj.toLatLon(110, 0) }, { path: 'navigation.anchor.maxRadius', value: 50 }] }]
+  })
+  t.mock.timers.tick(5 * 60 * 1000)
+  const notes = app.messages.filter((m) => m.msg.context === 'vessels.self')
+  assert.deepStrictEqual(notes, [])
+  plugin.stop()
+})

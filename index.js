@@ -4,6 +4,7 @@ const { TrackStore } = require('./src/store')
 const { analyzeTrack, DEFAULTS } = require('./src/detector')
 const { tagRepeatUse } = require('./src/repeat-use')
 const { seed } = require('./src/seed')
+const { AlertMonitor, DEFAULTS: ALERT_DEFAULTS } = require('./src/alerts')
 const plotterext = require('./src/plotterext')
 const { createPublisher, RESOURCE_TYPE } = require('./src/publish')
 const { version } = require('./package.json')
@@ -22,6 +23,8 @@ module.exports = function (app) {
   let unsubscribes = []
   let headings = new Map() // vesselContext -> { t, h } latest true heading in radians
   let running = false
+  let alerts = null // AlertMonitor of the current run
+  let ownAnchor = { position: null, radius: null }
   let seedRun = null // { cancelled } of the seeding started by the current start()
   let historyNote = '' // what the plugin status says about restart history
   const manifest = plotterext.buildManifest(version)
@@ -29,7 +32,8 @@ module.exports = function (app) {
     manifest,
     isRunning: () => running,
     trackedCount: () => (store ? store.ids().length : 0),
-    historyNote: () => historyNote
+    historyNote: () => historyNote,
+    alertsOf: (id) => (alerts ? alerts.alertsOf(id) : [])
   })
 
   plugin.schema = {
@@ -71,6 +75,52 @@ module.exports = function (app) {
         type: 'boolean',
         title: 'Publish weak (noisy ring) fits',
         default: true
+      },
+      alerts: {
+        type: 'object',
+        title: 'Alerts',
+        description:
+          'Notifications about other vessels, sent on your own vessel. Advisory estimates only: not an anchor watch.',
+        properties: {
+          overlapEnabled: {
+            type: 'boolean',
+            title: 'Warn when another boat\'s swing circle overlaps yours',
+            description: 'Needs an anchor set on your own vessel (navigation.anchor.position and maxRadius)',
+            default: ALERT_DEFAULTS.overlapEnabled
+          },
+          overlapMarginM: {
+            type: 'number',
+            title: 'Overlap margin (metres)',
+            description: 'Warn when the circles come closer than this to each other',
+            default: ALERT_DEFAULTS.overlapMarginM,
+            minimum: 0
+          },
+          dragEnabled: {
+            type: 'boolean',
+            title: 'Alarm when an anchored boat seems to drag',
+            default: ALERT_DEFAULTS.dragEnabled
+          },
+          dragMarginM: {
+            type: 'number',
+            title: 'Drag margin (metres)',
+            description: 'How far outside its swing circle a boat must be; at least 25 % of the radius for big circles',
+            default: ALERT_DEFAULTS.dragMarginM,
+            minimum: 5
+          },
+          dragSeconds: {
+            type: 'number',
+            title: 'Drag time outside (seconds)',
+            description: 'How long, over at least two position reports, before it counts as dragging',
+            default: ALERT_DEFAULTS.dragSeconds,
+            minimum: 30
+          },
+          alertDoubtful: {
+            type: 'boolean',
+            title: 'Alert on doubtful estimates too',
+            description: 'Weak fits, and drag alarms for possibly moored boats. Off by default to avoid false alarms.',
+            default: ALERT_DEFAULTS.alertDoubtful
+          }
+        }
       }
     }
   }
@@ -82,7 +132,8 @@ module.exports = function (app) {
 
   function onDelta(delta) {
     try {
-      if (!delta.context || delta.context === app.selfContext) return
+      if (!delta.context) return
+      if (delta.context === app.selfContext) return onSelfDelta(delta)
       for (const u of delta.updates || []) {
         const t = Date.parse(u.timestamp || new Date().toISOString()) / 1000
         for (const v of u.values || []) {
@@ -92,11 +143,45 @@ module.exports = function (app) {
             const hd = headings.get(delta.context)
             const heading = hd && Math.abs(t - hd.t) <= 60 ? hd.h : undefined
             store.add(delta.context, t, v.value.latitude, v.value.longitude, heading)
+            if (alerts && Date.now() / 1000 - t < 600) {
+              send(alerts.onFix(idFromContext(delta.context), { t, latitude: v.value.latitude, longitude: v.value.longitude, heading }, Date.now() / 1000))
+            }
           }
         }
       }
     } catch (err) {
       app.error(`delta handling failed: ${err.message}`)
+    }
+  }
+
+  // Notification changes from the alert monitor go out on the own vessel.
+  function send(changes) {
+    if (!changes || changes.length === 0) return
+    try {
+      app.handleMessage(plugin.id, { context: app.selfContext, updates: [{ values: changes }] })
+    } catch (err) {
+      app.error(`sending alerts failed: ${err.message}`)
+    }
+  }
+
+  // The own anchor, as set by an anchor alarm plugin or the user.
+  function onSelfDelta(delta) {
+    if (!alerts) return
+    let touched = false
+    for (const u of delta.updates || []) {
+      for (const v of u.values || []) {
+        if (v.path === 'navigation.anchor.position') {
+          ownAnchor.position = v.value && Number.isFinite(v.value.latitude) && Number.isFinite(v.value.longitude) ? v.value : null
+          touched = true
+        } else if (v.path === 'navigation.anchor.maxRadius') {
+          ownAnchor.radius = Number.isFinite(v.value) ? v.value : null
+          touched = true
+        }
+      }
+    }
+    if (touched) {
+      const ok = ownAnchor.position && ownAnchor.radius !== null
+      send(alerts.setOwnAnchor(ok ? { ...ownAnchor.position, radiusM: ownAnchor.radius } : null, Date.now() / 1000))
     }
   }
 
@@ -161,12 +246,18 @@ module.exports = function (app) {
         (options.includeWeakFits !== false || e.kind === 'area' || e.quality === 'strong')
     )
     publisher.publish(keep)
+    if (alerts) send(alerts.onCycle([...publisher.current().values()], nowS))
   }
 
   plugin.start = function (options) {
     options = options || {}
     store = new TrackStore({ maxAgeS: (options.historyHours ?? 12) * 3600 })
     running = true
+    ownAnchor = { position: null, radius: null }
+    alerts = new AlertMonitor(options.alerts || {}, (id) => {
+      const n = app.getPath && app.getPath(`vessels.urn:mrn:imo:mmsi:${id}.name`)
+      return n && n.value
+    })
     publisher.registerResources()
     app.subscriptionmanager.subscribe(
       {
@@ -178,6 +269,15 @@ module.exports = function (app) {
       },
       unsubscribes,
       (err) => app.error(`subscription error: ${err}`),
+      onDelta
+    )
+    app.subscriptionmanager.subscribe(
+      {
+        context: 'vessels.self',
+        subscribe: [{ path: 'navigation.anchor.*' }]
+      },
+      unsubscribes,
+      (err) => app.error(`own anchor subscription error: ${err}`),
       onDelta
     )
     const every = (options.analyzeIntervalMinutes ?? 5) * 60 * 1000
@@ -225,6 +325,8 @@ module.exports = function (app) {
 
   plugin.stop = function () {
     running = false
+    if (alerts) send(alerts.clearAll())
+    alerts = null
     publisher.clearAll()
     if (seedRun) seedRun.cancelled = true
     seedRun = null
