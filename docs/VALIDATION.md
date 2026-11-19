@@ -110,3 +110,7 @@ The round-blob rule lost four anchored ships off Tarragona: 2 to 4.5 h fragments
 - Approach and departure tracks pulled into an episode distort the circle fit badly and can make a berth look like a 250 m swing. The dense-core trim fixes this. It must be a single pass: iterating collapses a ring onto its densest arc.
 - A covariance ellipse over the raw points is meaningless for ring-shaped tracks.
 - Moored cargo ships at one fixed spot sit within 5 m for days. That is "still", not an anchor, and needs no special handling.
+
+## More data
+
+All results above come from one coast. Candidate historic AIS sources for busier sailboat anchorages (USVI, Saronic Gulf, Denmark and others) are compared in [research/ais-data-busy-anchorages.md](research/ais-data-busy-anchorages.md).
