@@ -74,11 +74,18 @@ and the alert monitor.
 Read-only `anchored-vessels` resource type serving GeoJSON Features from the current
 estimate map.
 
-### 2.8 Seeder (`src/seed.js`) **(1.0.0, to build)**
-On `start`, if the tracks plugin answers, fetch recent tracks for vessels in range
-and push them into the TrackStore, then run one analysis cycle immediately. Must not
-block `start`: runs async, logs and gives up quietly if the tracks plugin is absent
-or slow, and sets the plugin status to say whether seeding happened.
+### 2.8 Seeder (`src/seed.js`) **(1.0.0)**
+On `start`, ask the server's Track API for every other vessel's track over the
+history window and put it in front of the TrackStore's live fixes
+(`TrackStore.seed`, which only takes fixes older than a vessel's first live one,
+so order holds), then run one analysis cycle immediately. No range filter, the
+same as live tracking. Does not block `start`: runs async, waits up to 3 minutes
+for a tracks plugin that registers after us, then gives up quietly; the plugin
+status says whether history was seeded. The Track API takes Temporal values; the
+seeder uses the server's polyfill and, if it cannot find one, sends plain
+epoch-millisecond instants without a resolution and lets the TrackStore thin.
+Rejected: the v1 HTTP route (needs the port and a token under security, and
+tracks plugins before 3.0 kept tracks in memory, empty after a restart anyway).
 
 ### 2.9 AlertMonitor (`src/alerts.js`) **(1.0.0, to build)**
 Pure state machine plus a small adapter that emits notifications. Inputs: the current
@@ -166,7 +173,7 @@ AlertState = { overlap: 'normal'|'active', dragging: 'normal'|'active',
 | `app.getPath` | in | vessel `name` for display and alert messages |
 | Resource provider API (v2) | out | `anchored-vessels`, read only; `plotterExtensions` (manifest), read only |
 | Freeboard-SK ≥ 3.4 | out | Plotter Extensions API v1: `overlays.data`, `background.iframe`, optional `actions`, `actions.overlay`, `windows`, `nightMode` |
-| Tracks plugin | in, optional | Webapp: `GET /signalk/v1/api/vessels/<id>/track`. Seeder: bulk fetch of recent tracks; exact endpoint and how a plugin reaches it from inside the server to be confirmed when building (§9) |
+| Tracks plugin | in, optional | Webapp: `GET /signalk/v1/api/vessels/<id>/track`. Seeder: in process through the server's Track API (server ≥ 2.33, `@signalk/tracks-plugin` ≥ 3 as provider): `(await app.getTrackApi()).getTracks({ from, to, resolution: PT30S, times: true })`, one FeatureCollection of every vessel, `MultiLineString` in [lon, lat] with `properties.coordTimes` |
 | SignalK REST (v1) | in, webapp | `GET /signalk/v1/api/vessels/self/navigation/position` for the start view and own-vessel marker; `.../self/navigation/anchor` for the own anchor circle |
 | Tile servers | webapp only | `tile.openstreetmap.org`, `tiles.openseamap.org` |
 
@@ -226,8 +233,6 @@ SPEC.md, ARCHITECTURE.md, CHANGELOG.md, README.md
   (`app.getDataDirPath()`), an append-friendly format (JSON lines per month is
   enough at this volume), and a read API. Keeping estimates as plain objects with a
   stable shape now makes recording them later trivial.
-- **Seeder endpoint.** If the tracks plugin has no bulk endpoint, fall back to
-  per-vessel requests for vessels known from the server's current data model.
 - **Detector tuning per region.** Thresholds were validated on one coast; if beta
   testers in other waters need different values, expose them as advanced settings
   rather than forking constants.

@@ -28,6 +28,30 @@ class TrackStore {
     return true
   }
 
+  /**
+   * Put older fixes (oldest first, e.g. from the tracks plugin) in front of a
+   * vessel's track. Only fixes before the first live one are taken, so live
+   * data that arrived meanwhile always wins and order is kept. Returns how
+   * many were added.
+   */
+  seed(id, fixes) {
+    const live = this.tracks.get(id) || []
+    const firstLive = live.length ? live[0].t : Infinity
+    const out = []
+    for (const f of fixes) {
+      if (!Number.isFinite(f.t) || !Number.isFinite(f.lat) || !Number.isFinite(f.lon)) continue
+      if (f.t > firstLive - this.minFixIntervalS) break
+      const last = out[out.length - 1]
+      if (last && (f.t < last.t || f.t - last.t < this.minFixIntervalS)) continue
+      const fix = { t: f.t, lat: f.lat, lon: f.lon }
+      if (Number.isFinite(f.heading)) fix.heading = f.heading
+      out.push(fix)
+    }
+    if (out.length === 0) return 0
+    this.tracks.set(id, out.concat(live))
+    return out.length
+  }
+
   prune(nowS) {
     const cutoff = nowS - this.maxAgeS
     for (const [id, track] of this.tracks) {

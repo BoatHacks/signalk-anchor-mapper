@@ -3,6 +3,7 @@
 const { TrackStore } = require('./src/store')
 const { analyzeTrack, DEFAULTS } = require('./src/detector')
 const { tagRepeatUse } = require('./src/repeat-use')
+const { seed } = require('./src/seed')
 const plotterext = require('./src/plotterext')
 const { version } = require('./package.json')
 
@@ -23,6 +24,8 @@ module.exports = function (app) {
   let estimates = new Map() // vesselContext -> current estimate (for the resource provider)
   let headings = new Map() // vesselContext -> { t, h } latest true heading in radians
   let running = false
+  let seedRun = null // { cancelled } of the seeding started by the current start()
+  let historyNote = '' // what the plugin status says about restart history
   const manifest = plotterext.buildManifest(version)
 
   plugin.schema = {
@@ -215,7 +218,7 @@ module.exports = function (app) {
     published = now
     estimates = now
     const anchors = list.filter((e) => e.kind === 'anchor').length
-    app.setPluginStatus(`${anchors} anchored, ${list.length - anchors} area only, from ${store.ids().length} tracked`)
+    app.setPluginStatus(`${anchors} anchored, ${list.length - anchors} area only, from ${store.ids().length} tracked${historyNote}`)
   }
 
   function toFeature(e) {
@@ -312,11 +315,46 @@ module.exports = function (app) {
         app.error(`analysis cycle failed: ${err.message}`)
       }
     }, every)
-    app.setPluginStatus('collecting tracks')
+    app.setPluginStatus('collecting tracks; loading track history from the tracks plugin')
+    startSeeding(options)
+  }
+
+  function startSeeding(options) {
+    const run = { cancelled: false }
+    seedRun = run
+    const dwellMin = options.minDwellMinutes ?? DEFAULTS.minDwellS / 60
+    const noHistory = `no track history, so estimates need ${dwellMin} min to build up after a restart`
+    seed(app, store, {
+      historyS: (options.historyHours ?? 12) * 3600,
+      cancelled: () => run.cancelled
+    })
+      .then((r) => {
+        if (run.cancelled) return
+        if (r.ok) {
+          historyNote =
+            r.vessels > 0
+              ? `; seeded ${r.vessels} tracks from the tracks plugin`
+              : "; the tracks plugin had no other vessels' tracks to seed from"
+          if (app.debug) app.debug(`seeded ${r.fixes} fixes of ${r.vessels} vessels from the Track API`)
+          analyze(options)
+          return
+        }
+        historyNote = `; ${noHistory}`
+        if (r.reason === 'fetch-failed') {
+          app.error(`seeding from the tracks plugin failed: ${r.error && r.error.message}`)
+        } else if (app.debug) {
+          app.debug(`no track history to seed from (${r.reason})`)
+        }
+        app.setPluginStatus(`collecting tracks; ${noHistory}`)
+      })
+      .catch((err) => app.error(`seeding failed: ${err.message}`))
   }
 
   plugin.stop = function () {
     running = false
+    if (seedRun) seedRun.cancelled = true
+    seedRun = null
+    historyNote = ''
     if (timer) clearInterval(timer)
     timer = null
     unsubscribes.forEach((f) => f())

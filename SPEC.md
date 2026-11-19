@@ -296,8 +296,9 @@ Constraint: works on the boat without internet for everything except map tiles.
 
 - (Post-1.0) **The atlas persists** on disk in the plugin's data directory and must
   survive restarts and plugin upgrades.
-- **Tracks are seeded on start** from the SignalK tracks plugin when it is installed:
-  the plugin pulls the recent tracks of nearby vessels (up to the history window),
+- **Tracks are seeded on start** from the SignalK tracks plugin when it is installed
+  (3.0+ on server 2.33+, through the server's Track API): the plugin pulls the
+  recent tracks of all vessels the tracks plugin recorded (up to the history window),
   so estimates and alerts resume within one analysis cycle instead of after the
   minimum dwell. The plugin keeps no track store of its own.
 - Seeded fixes carry position only. Heading-ray estimates need fresh heading fixes

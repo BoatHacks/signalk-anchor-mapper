@@ -117,3 +117,76 @@ test('plugin serves the Freeboard plotter extension manifest only while running'
   await assert.rejects(prov.methods.getResource('signalk-anchor-mapper'))
   assert.deepStrictEqual(app.errors, [])
 })
+
+function swingingTrack(proj, startMs, hours) {
+  const segment = []
+  for (let i = 0; i <= hours * 120; i++) {
+    const a = (i / (hours * 120)) * 5
+    const p = proj.toLatLon(70 * Math.cos(a), 70 * Math.sin(a))
+    segment.push({ t: new Date(startMs + i * 30000 - hours * 3600 * 1000).toISOString(), p })
+  }
+  return {
+    type: 'Feature',
+    geometry: { type: 'MultiLineString', coordinates: [segment.map((s) => [s.p.longitude, s.p.latitude])] },
+    properties: { context: 'vessels.urn:mrn:imo:mmsi:123456789', isSelf: false, coordTimes: [segment.map((s) => s.t)] }
+  }
+}
+
+const flush = () => new Promise((resolve) => setImmediate(resolve))
+
+test('after a restart, tracks from the tracks plugin give an estimate right away', async (t) => {
+  const app = fakeApp()
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'] })
+  const start = Date.parse('2026-01-01T00:00:00Z')
+  t.mock.timers.setTime(start)
+  let request = null
+  app.getTrackApi = async () => ({
+    getTracks: async (q) => {
+      request = q
+      return { type: 'FeatureCollection', features: [swingingTrack(makeProjection(40.6, 0.6), start, 5)] }
+    }
+  })
+  const plugin = createPlugin(app)
+  plugin.start({ historyHours: 12 })
+  assert.match(app.status, /loading track history/)
+  for (let i = 0; i < 5; i++) await flush()
+
+  assert.strictEqual(request.to.epochMilliseconds - request.from.epochMilliseconds, 12 * 3600 * 1000)
+  const radius = app.messages.flatMap((m) => m.msg.updates[0].values).find((v) => v.path === 'navigation.anchor.maxRadius')
+  assert.ok(radius && Math.abs(radius.value - 70) < 15, `radius ${radius && radius.value}`)
+  assert.match(app.status, /^1 anchored, .*seeded 1 tracks from the tracks plugin/)
+  assert.deepStrictEqual(app.errors, [])
+  plugin.stop()
+})
+
+test('without the tracks plugin, start still succeeds and the status says estimates need the dwell time', async () => {
+  const app = fakeApp()
+  const plugin = createPlugin(app)
+  plugin.start({ minDwellMinutes: 90 })
+  await flush()
+  assert.match(app.status, /no track history, so estimates need 90 min/)
+  assert.deepStrictEqual(app.errors, [])
+  plugin.stop()
+
+  const failing = fakeApp()
+  failing.getTrackApi = async () => ({ getTracks: async () => { throw new Error('database is locked') } })
+  const p2 = createPlugin(failing)
+  p2.start({})
+  for (let i = 0; i < 3; i++) await flush()
+  assert.match(failing.status, /no track history/)
+  assert.deepStrictEqual(failing.errors, ['seeding from the tracks plugin failed: database is locked'])
+  p2.stop()
+})
+
+test('stopping the plugin while seeding drops the seeded tracks', async () => {
+  const app = fakeApp()
+  let release
+  app.getTrackApi = () => new Promise((resolve) => (release = resolve))
+  const plugin = createPlugin(app)
+  plugin.start({})
+  plugin.stop()
+  release({ getTracks: async () => ({ features: [] }) })
+  for (let i = 0; i < 3; i++) await flush()
+  assert.deepStrictEqual(app.errors, [])
+  assert.deepStrictEqual(app.messages, [])
+})

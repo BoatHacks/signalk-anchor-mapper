@@ -68,7 +68,7 @@ All in the admin UI under Server, Plugin Config, Anchor Mapper:
 
 ## Known limits
 
-- Tracks live in memory, so a server restart loses history and detection needs the dwell time again to rebuild it. Seeding from the tracks plugin or a history database is planned.
+- Tracks live in memory. After a restart the plugin fills them back from the [tracks plugin](https://www.npmjs.com/package/@signalk/tracks-plugin) (3.0 or later, on Signal K server 2.33 or later), which keeps AIS tracks in a database. Without it, a restart means no estimates for up to the minimum time stationary (2 h by default), and the plugin status says so. Seeded positions carry no heading, so a ship that had a heading-based estimate may show as a ring fit or an area until about 15 minutes of fresh headings have come in.
 - A vessel with no position reports for more than 30 minutes ends its episode.
 - Without heading (class B yachts), a boat in a narrow band gets an area only, not an anchor point. The shape of a short arc cannot fix the circle, and guessing would understate the swing radius badly.
 - Heading based estimates assume the bow points at the anchor. Strong tide or current, or a boat sheering on its chain, adds scatter, which is why such estimates are rated `weak` when the rays miss by more than 15% of the distance.
