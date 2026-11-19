@@ -236,7 +236,7 @@ test('overlap and drag notifications go out on self, and clear on stop', async (
     })
   fixAt(outside)
   t.mock.timers.tick(120 * 1000)
-  fixAt(proj.toLatLon(162, 0))
+  fixAt(proj.toLatLon(170, 0))
   const drag = notes().find((v) => v.path === 'notifications.anchorMapper.dragging.123456789')
   assert.ok(drag, 'drag notification sent')
   assert.strictEqual(drag.value.state, 'alarm')

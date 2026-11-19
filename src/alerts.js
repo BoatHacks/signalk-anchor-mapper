@@ -12,7 +12,7 @@ const DEFAULTS = {
   dragMarginFrac: 0.25,
   dragSeconds: 90, // outside for at least this long...
   dragMinFixes: 2, // ...over at least this many fixes
-  dragMovedM: 10, // ...and having moved at least this far while outside (a boat sitting still is not dragging)
+  dragMovedM: 15, // ...and having moved this much further out while outside (a boat sitting still is not dragging)
   settleS: 1800, // a boat that sits still outside for this long has settled, not dragged
   alertDoubtful: false,
   holdS: 600, // a drag alert outlives its estimate this long
@@ -54,7 +54,9 @@ class AlertMonitor {
       v = {
         overlap: null, // last notification value sent, or null when normal
         dragging: null,
-        outside: [], // consecutive outside fixes { t, latitude, longitude }
+        outside: [], // consecutive outside fixes { t, latitude, longitude, d }
+        beyondSince: null, // start of the current stay beyond half the margin
+        suppress: null, // estimate (since) a departure ended the drag check for
         frozen: null, // { center, radiusM } the drag check is judged against
         last: null, // last fix { t, latitude, longitude }
         holdUntil: null
@@ -96,7 +98,7 @@ class AlertMonitor {
 
   _forget(id) {
     const v = this.vessels.get(id)
-    if (v && !v.overlap && !v.dragging && !v.frozen && v.outside.length === 0) this.vessels.delete(id)
+    if (v && !v.overlap && !v.dragging && !v.frozen && !v.suppress && v.beyondSince === null && v.outside.length === 0) this.vessels.delete(id)
   }
 
   // Strong, solid estimates only unless the user asked for doubtful ones as well.
@@ -187,6 +189,13 @@ class AlertMonitor {
         v.outside = []
       }
     }
+    // A departure silences a vessel until its estimate is gone or a new one starts.
+    for (const [id, v] of this.vessels) {
+      if (v.suppress && (!this.estimates.has(id) || this.estimates.get(id).since !== v.suppress)) {
+        v.suppress = null
+        v.beyondSince = null
+      }
+    }
     for (const id of [...this.vessels.keys()]) this._forget(id)
   }
 
@@ -241,16 +250,34 @@ class AlertMonitor {
     const d = distanceM(fix, ref.center) - ref.radiusM // metres outside the swing circle
 
     if (this._departing(fix, prev)) {
-      // A boat leaving: no alarm, and an active one ends.
+      // A boat leaving: no alarm, an active one ends, and it stays quiet while its
+      // (now outdated) estimate lingers.
+      if (v.outside.length > 0 || v.dragging) v.suppress = est ? est.since || true : true
       v.outside = []
+      v.beyondSince = null
       if (v.dragging) this._clearDrag(id, v, changes)
       else v.frozen = null
       this._forget(id)
       return changes
     }
+    if (v.suppress) {
+      if (est && est.since && est.since !== v.suppress) {
+        v.suppress = null
+        v.beyondSince = null
+      } else return changes
+    }
+    if (d > margin / 2) {
+      if (v.beyondSince === null) v.beyondSince = fix.t
+    } else {
+      v.beyondSince = null
+    }
     if (d > margin) {
-      if (v.outside.length === 0) v.frozen = ref
-      v.outside.push({ t: fix.t, latitude: fix.latitude, longitude: fix.longitude })
+      if (v.outside.length === 0) {
+        v.frozen = ref
+        // Already sat beyond the circle for the settle time before crossing the margin: settled there.
+        v.settledBefore = fix.t - v.beyondSince >= this.o.settleS
+      }
+      v.outside.push({ t: fix.t, latitude: fix.latitude, longitude: fix.longitude, d })
       if (this._settled(v, fix)) {
         // Sitting still outside for a long time: it has moved to a new spot, not dragged.
         const here = v.outside[v.outside.length - 1]
@@ -258,11 +285,11 @@ class AlertMonitor {
         v.outside = [here]
       } else {
         const first = v.outside[0]
-        const moved = distanceM(first, fix) >= this.o.dragMovedM
         const long = v.outside.length >= this.o.dragMinFixes && fix.t - first.t >= this.o.dragSeconds
-        if (v.dragging || (long && moved)) this._raiseDrag(id, v, v.last, changes)
+        if (v.dragging || (long && !v.settledBefore && this._movingOut(v))) this._raiseDrag(id, v, v.last, changes)
       }
     } else if (d <= margin / 2) {
+      v.settledBefore = false
       // Back inside by more than half the margin: the alert clears.
       v.outside = []
       if (v.dragging) this._clearDrag(id, v, changes)
@@ -273,6 +300,15 @@ class AlertMonitor {
     }
     this._forget(id)
     return changes
+  }
+
+  // The distance outside the circle has grown by dragMovedM over the run, comparing the
+  // means of its first and last halves so GPS jitter does not count as movement.
+  _movingOut(v) {
+    const ds = v.outside.map((f) => f.d)
+    const k = Math.max(1, ds.length >> 1)
+    const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length
+    return mean(ds.slice(-k)) - mean(ds.slice(0, k)) >= this.o.dragMovedM
   }
 
   // Outside for at least settleS and not moving more than dragMovedM over that time.

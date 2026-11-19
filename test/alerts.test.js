@@ -124,7 +124,7 @@ test('drag: one outside fix is not enough, a second 90 s later raises', () => {
   const m = setup()
   assert.deepStrictEqual(m.onFix('7', fix(0, 500 + 70, 0), 0), []) // 30 m outside, 1st
   assert.deepStrictEqual(m.onFix('7', fix(60, 500 + 75, 0), 60), []) // 2 fixes but only 60 s
-  const out = m.onFix('7', fix(120, 500 + 82, 0), 120)
+  const out = m.onFix('7', fix(120, 500 + 90, 0), 120)
   assert.strictEqual(out.length, 1)
   assert.strictEqual(out[0].path, 'notifications.anchorMapper.dragging.7')
   assert.match(out[0].value.message, /Possible drag: MMSI 7 is \d+ m outside its swing circle/)
@@ -134,7 +134,7 @@ test('drag: one outside fix is not enough, a second 90 s later raises', () => {
 test('drag: at the 3 minute AIS rate two fixes are enough', () => {
   const m = setup()
   m.onFix('7', fix(0, 500 + 70, 0), 0)
-  assert.strictEqual(m.onFix('7', fix(180, 500 + 80, 0), 180)[0].value.state, 'warn')
+  assert.strictEqual(m.onFix('7', fix(180, 500 + 90, 0), 180)[0].value.state, 'warn')
 })
 
 test('drag: repeated or stale fixes do not add up', () => {
@@ -156,25 +156,25 @@ test('drag: sound alarm only near the own anchor, otherwise a silent warning', (
   const loud = setup({}, own(0, 0, 100))
   loud.estimates.set('7', est('7', 250, 0, 40)) // vessel anchored 250 m away, drifts toward us
   loud.onFix('7', fix(0, 250 - 70, 0), 0)
-  const a = loud.onFix('7', fix(180, 250 - 82, 0), 180)
+  const a = loud.onFix('7', fix(180, 250 - 90, 0), 180)
   assert.strictEqual(a[0].value.state, 'alarm')
   assert.deepStrictEqual(a[0].value.method, ['visual', 'sound'])
   // far from the own anchor: warn without sound
   const quiet = setup({}, own(0, 0, 100))
   quiet.onFix('7', fix(0, 570, 0), 0)
-  const b = quiet.onFix('7', fix(180, 580, 0), 180)
+  const b = quiet.onFix('7', fix(180, 590, 0), 180)
   assert.strictEqual(b[0].value.state, 'warn')
   assert.deepStrictEqual(b[0].value.method, ['visual'])
   // no own anchor at all: warn
   const none = setup()
   none.onFix('7', fix(0, 570, 0), 0)
-  assert.strictEqual(none.onFix('7', fix(180, 580, 0), 180)[0].value.state, 'warn')
+  assert.strictEqual(none.onFix('7', fix(180, 590, 0), 180)[0].value.state, 'warn')
 })
 
 test('drag: back inside by more than half the margin clears, in the band it stays', () => {
   const m = setup()
   m.onFix('7', fix(0, 500 + 70, 0), 0)
-  m.onFix('7', fix(180, 500 + 82, 0), 180) // raised
+  m.onFix('7', fix(180, 500 + 90, 0), 180) // raised
   assert.deepStrictEqual(m.onFix('7', fix(360, 500 + 55, 0), 360), []) // 15 m outside the circle > margin/2 = 10: stays
   const out = m.onFix('7', fix(540, 500 + 45, 0), 540) // 5 m outside <= 10: clears
   assert.strictEqual(out[0].value.state, 'normal')
@@ -184,9 +184,9 @@ test('drag: back inside by more than half the margin clears, in the band it stay
 test('drag: a refit with a bigger radius cannot cancel the alarm (frozen reference)', () => {
   const m = setup()
   m.onFix('7', fix(0, 500 + 70, 0), 0)
-  m.onFix('7', fix(180, 500 + 80, 0), 180) // raised against 40 m
+  m.onFix('7', fix(180, 500 + 90, 0), 180) // raised against 40 m
   m.onCycle([est('7', 500, 0, 120)], 300) // next cycle refits a big circle around the drift
-  const out = m.onFix('7', fix(360, 500 + 85, 0), 360)
+  const out = m.onFix('7', fix(360, 500 + 90, 0), 360)
   assert.deepStrictEqual(m.alertsOf('7'), ['dragging'])
   assert.ok(out.length === 0 || out[0].value.state !== 'normal')
 })
@@ -194,7 +194,7 @@ test('drag: a refit with a bigger radius cannot cancel the alarm (frozen referen
 test('drag: the alert holds 10 minutes after the estimate is gone, then clears', () => {
   const m = setup()
   m.onFix('7', fix(0, 500 + 70, 0), 0)
-  m.onFix('7', fix(180, 500 + 80, 0), 180)
+  m.onFix('7', fix(180, 500 + 90, 0), 180)
   assert.deepStrictEqual(m.onCycle([], 300), []) // estimate gone, hold starts
   assert.deepStrictEqual(m.alertsOf('7'), ['dragging'])
   assert.deepStrictEqual(m.onCycle([], 300 + 599), [])
@@ -236,7 +236,7 @@ test('drag: flapping at the boundary does not toggle the alert', () => {
 test('drag: drag alerts off, nothing is raised', () => {
   const m = setup({ dragEnabled: false })
   m.onFix('7', fix(0, 570, 0), 0)
-  assert.deepStrictEqual(m.onFix('7', fix(180, 580, 0), 180), [])
+  assert.deepStrictEqual(m.onFix('7', fix(180, 590, 0), 180), [])
 })
 
 test('area estimates are never drag-checked', () => {
@@ -250,7 +250,7 @@ test('clearAll sets every active alert back to normal', () => {
   const m = setup({}, own(500, 0, 100))
   m.onCycle([est('7', 500, 0, 40), est('8', 560, 0, 40)], 0)
   m.onFix('7', fix(0, 570, 0), 0)
-  m.onFix('7', fix(180, 580, 0), 180)
+  m.onFix('7', fix(180, 590, 0), 180)
   const out = m.clearAll()
   assert.ok(out.length >= 2)
   assert.ok(out.every((c) => c.value.state === 'normal'))
@@ -268,7 +268,7 @@ test('drag: a boat sitting still outside its circle is not dragging', () => {
 test('drag: an alarm ends when the boat has settled still outside for 30 minutes', () => {
   const m = setup()
   m.onFix('7', fix(0, 500 + 70, 0), 0)
-  m.onFix('7', fix(180, 500 + 85, 0), 180) // raised: drifting
+  m.onFix('7', fix(180, 500 + 90, 0), 180) // raised: drifting
   assert.deepStrictEqual(m.alertsOf('7'), ['dragging'])
   let out = []
   // then it stays put at 100 m for well over 30 min
@@ -284,8 +284,41 @@ test('drag: an alarm ends when the boat has settled still outside for 30 minutes
 test('drag: a boat that leaves while an alarm is up ends the alarm', () => {
   const m = setup()
   m.onFix('7', fix(0, 500 + 70, 0), 0)
-  m.onFix('7', fix(180, 500 + 85, 0), 180)
+  m.onFix('7', fix(180, 500 + 90, 0), 180)
   const out = m.onFix('7', fix(240, 500 + 285, 0), 240) // 200 m in 60 s
   assert.strictEqual(out[0].value.state, 'normal')
   assert.deepStrictEqual(m.alertsOf('7'), [])
+})
+
+test('drag: GPS jitter outside the circle is not movement outward', () => {
+  const m = setup()
+  let out = []
+  const xs = [66, 80, 64, 82, 62, 84, 66, 80, 64, 82, 66, 80]
+  xs.forEach((x, i) => (out = out.concat(m.onFix('7', fix(i * 180, 500 + x, 0), i * 180))))
+  assert.deepStrictEqual(out, [])
+})
+
+test('drag: a boat that sat beyond the circle for 30 minutes before crossing the margin is not dragging', () => {
+  const m = setup()
+  let out = []
+  // 45 min in the band (10 to 20 m outside the circle), then a small step across the margin
+  for (let i = 0; i < 15; i++) out = out.concat(m.onFix('7', fix(i * 180, 500 + 54, 0), i * 180))
+  out = out.concat(m.onFix('7', fix(15 * 180, 500 + 70, 0), 15 * 180))
+  out = out.concat(m.onFix('7', fix(16 * 180, 500 + 90, 0), 16 * 180))
+  assert.deepStrictEqual(out, [])
+})
+
+test('drag: after a departure the vessel stays quiet while its estimate lingers, and speaks again for a new one', () => {
+  const m = setup()
+  m.onFix('7', fix(0, 500 + 70, 0), 0)
+  m.onFix('7', fix(180, 500 + 90, 0), 180) // raised
+  m.onFix('7', fix(240, 500 + 290, 0), 240) // leaves fast: alarm ends
+  // the stale estimate lingers; slow fixes out in the open must not re-raise
+  let out = []
+  for (let i = 1; i <= 6; i++) out = out.concat(m.onFix('7', fix(240 + i * 180, 500 + 300 + i * 30, 0), 240 + i * 180))
+  assert.deepStrictEqual(out, [])
+  // a new estimate (a new stay) starts afresh
+  m.onCycle([est('7', 900, 0, 40, { since: 'later' })], 2000)
+  m.onFix('7', fix(3000, 900 + 70, 0), 3000)
+  assert.strictEqual(m.onFix('7', fix(3180, 900 + 90, 0), 3180)[0].value.state, 'warn')
 })

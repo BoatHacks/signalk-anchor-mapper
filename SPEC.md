@@ -137,11 +137,15 @@ All alerts are advisory estimates, not an anchor watch.
   that, the next cycle could refit a larger circle around the drift (the episode gate
   is 250 m) and cancel a real drag.
 - **Sitting still is not dragging (decided 2026-11-19, after replaying recorded AIS).**
-  The outside run must also show movement: the vessel has to be at least 10 m from its
-  first outside fix. A boat that stays outside for 30 minutes without moving more than
-  10 m has settled on a new spot: its alarm ends and the run starts over. Both are
-  fixed constants. The replay showed most false alarms were small boats sitting just
-  outside a small circle for hours, and one stale circle on a ship that had moved.
+  Three fixed rules keep boats that merely sit outside their circle from alarming:
+  the outside run must show real movement outward (the mean distance outside over the
+  second half of the run at least 15 m beyond that of the first half, so GPS jitter of
+  10 to 25 m does not count); a boat that stayed more than half the margin beyond its
+  circle for 30 minutes before crossing the margin has settled there and cannot start
+  a drag; and a boat that stays outside for 30 minutes without moving more than 15 m
+  has settled, so its alarm ends and the run starts over. The replay showed most false
+  alarms were small boats sitting just outside a small circle for hours. A drag
+  slower than about 10 m in 30 minutes is not caught: accepted.
 - **Departing is not dragging.** A fix does not count when the vessel moves faster
   than 3 kn, or bow-first (track direction within 90° of its heading) above 1 kn, and a
   departure ends an active drag alert. 3 kn kept after the replay: it removed only real
