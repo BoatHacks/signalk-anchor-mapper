@@ -1,0 +1,36 @@
+name: publish
+
+# Publishes to npm with OIDC trusted publishing (no NPM_TOKEN, no OTP).
+# Normal path: `gh release create vX.Y.Z` fires the release event.
+# workflow_dispatch publishes an existing tag, e.g. one released before this workflow existed.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish, e.g. v0.2.1'
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+      - name: Check the tag matches package.json
+        run: |
+          tag="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
+          ver="v$(node -p "require('./package.json').version")"
+          [ "$tag" = "$ver" ] || { echo "tag $tag does not match package.json $ver"; exit 1; }
+      - run: npm test
+      - run: npm publish
