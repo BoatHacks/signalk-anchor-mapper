@@ -86,8 +86,10 @@ and when the own anchor changes; dragging is evaluated on every fix (SPEC §2.7)
 Emits deltas on `notifications.anchorMapper.{overlap,dragging}.<mmsi>` on self.
 
 ### 2.10 Webapp (`public/`)
-Static Leaflet page served by the SignalK webapp mechanism. Polls the resource
-provider every 60 s, draws circles, ellipses and tags, and fetches one vessel's
+Static Leaflet page served by the SignalK webapp mechanism. Polls the own
+`navigation.position` (`/signalk/v1/api/vessels/self/navigation/position`) and the
+resource provider every 60 s. Start view: own vessel at zoom 14; without it, the
+estimates' bounds; with neither, the world. It draws circles, ellipses and tags, and fetches one vessel's
 track from the tracks plugin on demand. Plain ES2015 with no optional chaining,
 because some chart plotter browsers are old. Leaflet is vendored; tiles come from the
 internet.
@@ -136,6 +138,7 @@ AlertState = { overlap: 'normal'|'active', dragging: 'normal'|'active',
 | `app.getPath` | in | vessel `name` for display and alert messages |
 | Resource provider API (v2) | out | `anchored-vessels`, read only |
 | Tracks plugin | in, optional | Webapp: `GET /signalk/v1/api/vessels/<id>/track`. Seeder: bulk fetch of recent tracks; exact endpoint and how a plugin reaches it from inside the server to be confirmed when building (§9) |
+| SignalK REST (v1) | in, webapp | `GET /signalk/v1/api/vessels/self/navigation/position` for the start view and own-vessel marker |
 | Tile servers | webapp only | `tile.openstreetmap.org`, `tiles.openseamap.org` |
 
 ## 6. Security Considerations
@@ -187,8 +190,6 @@ SPEC.md, ARCHITECTURE.md, CHANGELOG.md, README.md
   (`app.getDataDirPath()`), an append-friendly format (JSON lines per month is
   enough at this volume), and a read API. Keeping estimates as plain objects with a
   stable shape now makes recording them later trivial.
-- **Webapp start view.** It currently opens at a fixed position on the Spanish
-  coast; for any-user 1.0.0 it should centre on the own vessel or the estimates.
 - **Seeder endpoint.** If the tracks plugin has no bulk endpoint, fall back to
   per-vessel requests for vessels known from the server's current data model.
 - **Detector tuning per region.** Thresholds were validated on one coast; if beta

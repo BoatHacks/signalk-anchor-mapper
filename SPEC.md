@@ -247,6 +247,11 @@ and to spots computed from them. **(Shape to be fixed in ARCHITECTURE.md.)**
 ## 7. User Interface
 
 A buildless webapp (listed in the SignalK webapp menu):
+- Opens centred on the own vessel's `navigation.position` (zoom 14), with a marker
+  for the own vessel. Only without an own position does it fall back to fitting the
+  estimates, and with neither to a world view that says "no own position yet". If
+  the own position appears later, the map centres on it once, unless the user has
+  already panned.
 - OpenStreetMap base map with the OpenSeaMap seamark overlay.
 - Each anchor estimate as a circle of its swing radius; each area estimate as its
   ellipse with the anchor-bearing hint.
@@ -307,6 +312,7 @@ radius and count.
 ### 10.2 Needed for 1.0.0
 - Overlap and drag alerts (§2.7, decided 2026-11-18).
 - Seed tracks from the tracks plugin on start (§8, decided 2026-11-18).
+- Webapp opens on the own vessel's position (§7, decided 2026-11-19). Done.
 - Published on npm and the SignalK plugin registry (§1.1).
 - **Live validation gate:** at least 2 weeks running on the author's own server
   before release. Checked against class A vessels' reported navigational status

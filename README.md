@@ -42,7 +42,7 @@ A read-only resource provider also serves the current estimates as GeoJSON featu
 
 ## Webapp
 
-`public/` is a buildless Leaflet webapp with the OpenStreetMap base map and the OpenSeaMap seamark layer. It draws each estimate as a circle with its track (fetched from the SignalK tracks plugin when that is installed) and lists the tags. Leaflet is vendored in `public/vendor/leaflet`. Tiles load from the internet, so the map background is blank offline.
+`public/` is a buildless Leaflet webapp with the OpenStreetMap base map and the OpenSeaMap seamark layer. It opens centred on your own vessel's `navigation.position`; without a position fix it shows the estimates instead, and re-centres on your boat once a fix arrives (unless you have already moved the map). It draws each estimate as a circle with its track (fetched from the SignalK tracks plugin when that is installed) and lists the tags. Leaflet is vendored in `public/vendor/leaflet`. Tiles load from the internet, so the map background is blank offline.
 
 ## Configuration
 

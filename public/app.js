@@ -4,8 +4,11 @@
 
   var RESOURCE_URL = '/signalk/v2/api/resources/anchored-vessels'
   var REFRESH_MS = 60000
+  var SELF_POSITION_URL = '/signalk/v1/api/vessels/self/navigation/position'
+  var SELF_ZOOM = 14
 
-  var map = L.map('map', { zoomControl: true }).setView([40.6, 0.6], 11)
+  // World view only until the start view is decided (see placeStartView).
+  var map = L.map('map', { zoomControl: true }).setView([20, 0], 2)
   // Base chart plus the OpenSeaMap seamark overlay (buoys, lights, harbours).
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
@@ -17,7 +20,44 @@
   }).addTo(map)
 
   var layer = L.layerGroup().addTo(map)
+  var selfMarker = null
+  // Start view: own vessel first, else the estimates, else the world.
+  // 'centred' means the map sits on the own vessel; 'fitted' that it shows the estimates.
+  var centred = false
   var fitted = false
+  var userMoved = false
+  var hasSelf = false
+  map.on('dragstart', function () { userMoved = true })
+
+  // Resolves to [lat, lon] or null. Accepts the full SignalK node ({ value: {...} }) or a bare value.
+  function fetchSelfPosition() {
+    return fetch(SELF_POSITION_URL)
+      .then(function (r) { return r.ok ? r.json() : null })
+      .then(function (node) {
+        var v = node && node.value ? node.value : node
+        if (!v || typeof v.latitude !== 'number' || typeof v.longitude !== 'number') return null
+        if (!isFinite(v.latitude) || !isFinite(v.longitude)) return null
+        return [v.latitude, v.longitude]
+      })
+      .catch(function () { return null })
+  }
+
+  function showSelf(ll) {
+    hasSelf = !!ll
+    if (!ll) return
+    if (!selfMarker) {
+      selfMarker = L.circleMarker(ll, { radius: 7, color: '#ffffff', weight: 3, fillColor: '#ff4f6d', fillOpacity: 1 })
+        .bindTooltip('own vessel').addTo(map)
+    } else {
+      selfMarker.setLatLng(ll)
+    }
+    // Centre on the boat once. If the position arrives late, still do it unless the user has panned.
+    if (!centred && !userMoved) {
+      map.setView(ll, SELF_ZOOM)
+      centred = true
+      fitted = true
+    }
+  }
 
   function text(el, s) {
     el.textContent = s
@@ -108,18 +148,23 @@
         text(s, t)
         row.appendChild(s)
       })
-      row.onclick = function () { map.setView(ll, 16); marker.openPopup() }
+      row.onclick = function () { userMoved = true; map.setView(ll, 16); marker.openPopup() }
       list.appendChild(row)
     })
-    if (!fitted && bounds.length) {
+    // Fallback start view when there is no own position: fit the estimates once.
+    if (!fitted && !userMoved && bounds.length) {
       map.fitBounds(bounds, { padding: [60, 60], maxZoom: 15 })
       fitted = true
     }
-    text(document.getElementById('status'), features.length + ' estimate' + (features.length === 1 ? '' : 's'))
+    text(document.getElementById('status'), features.length + ' estimate' + (features.length === 1 ? '' : 's') +
+      (hasSelf ? '' : ', no own position yet'))
   }
 
   function refresh() {
-    fetch(RESOURCE_URL)
+    // Own position first, so the start view is settled before the estimates can fit.
+    fetchSelfPosition()
+      .then(showSelf)
+      .then(function () { return fetch(RESOURCE_URL) })
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status)
         return r.json()

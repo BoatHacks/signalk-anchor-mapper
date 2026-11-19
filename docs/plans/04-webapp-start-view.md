@@ -20,11 +20,19 @@ visible.
 Manual in a browser: with own position, without own position but with estimates,
 with neither. Check an old MFD-class browser still parses (ES2015, no optional chaining).
 
+Decided 2026-11-19 (Tobi): the map always starts on the own vessel. The estimate
+auto-fit only runs when there is no own position, so it never pulls the view away
+from the boat. A position that shows up after load still centres the map once,
+unless the user has already panned or clicked a row. The own position is fetched
+before the estimates on every refresh, which also moves the own-vessel marker.
+
 ## Steps
-- [ ] Remove the hard-coded centre
-- [ ] Self position → estimates bounds → world fallback
+- [x] Remove the hard-coded centre
+- [x] Self position → estimates bounds → world fallback (checked headless with mocked
+      endpoints: self+estimates, estimates only, neither, late fix, late fix after pan)
+- [x] Own-vessel marker
 - [ ] Own anchor circle
-- [ ] Manual check, screenshot for README/registry
+- [ ] Manual check on the Pi, screenshot for README/registry
 
 ## Files
 Modify `public/app.js`, possibly `public/index.html`, README.md.
