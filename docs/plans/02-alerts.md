@@ -27,6 +27,9 @@ Decided with Tobi on 2026-11-19, on top of the SPEC text:
 - departure filter: a fix moving faster than 3 kn, or bow-first above 1 kn, is a boat
   leaving; the 3 kn is tuned on recorded data before release;
 - sound alarm only within two swing radii of the own anchor, else a silent `warn`;
+- after replaying 25 days of recorded AIS (22 drag alarms, most false): an alarm needs
+  10 m of movement while outside, a boat still outside for 30 min has settled and its
+  alarm ends, and a departure ends an active alarm;
 - tagged boats can raise overlap warnings but never drag alarms; weak never alerts
   unless "alert on doubtful estimates" is on;
 - wording short, no disclaimer on the alert (advisory note in the README);

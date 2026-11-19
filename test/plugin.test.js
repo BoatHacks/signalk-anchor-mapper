@@ -229,14 +229,14 @@ test('overlap and drag notifications go out on self, and clear on stop', async (
 
   // the vessel drifts 80 m past its swing circle for over 90 s: drag alarm, loud as it nears our anchor
   const outside = proj.toLatLon(150, 0)
-  const fixAt = () =>
+  const fixAt = (p) =>
     app.handler({
       context: ctx,
-      updates: [{ timestamp: new Date(Date.now()).toISOString(), values: [{ path: 'navigation.position', value: outside }] }]
+      updates: [{ timestamp: new Date(Date.now()).toISOString(), values: [{ path: 'navigation.position', value: p }] }]
     })
-  fixAt()
+  fixAt(outside)
   t.mock.timers.tick(120 * 1000)
-  fixAt()
+  fixAt(proj.toLatLon(162, 0))
   const drag = notes().find((v) => v.path === 'notifications.anchorMapper.dragging.123456789')
   assert.ok(drag, 'drag notification sent')
   assert.strictEqual(drag.value.state, 'alarm')

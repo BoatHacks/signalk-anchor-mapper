@@ -136,9 +136,16 @@ All alerts are advisory estimates, not an anchor watch.
   judged against stay as they were until it is back inside or the alert ends. Without
   that, the next cycle could refit a larger circle around the drift (the episode gate
   is 250 m) and cancel a real drag.
+- **Sitting still is not dragging (decided 2026-11-19, after replaying recorded AIS).**
+  The outside run must also show movement: the vessel has to be at least 10 m from its
+  first outside fix. A boat that stays outside for 30 minutes without moving more than
+  10 m has settled on a new spot: its alarm ends and the run starts over. Both are
+  fixed constants. The replay showed most false alarms were small boats sitting just
+  outside a small circle for hours, and one stale circle on a ship that had moved.
 - **Departing is not dragging.** A fix does not count when the vessel moves faster
-  than 3 kn, or bow-first (track direction within 90° of its heading) above 1 kn. The
-  3 kn threshold is to be tuned on recorded data before release (docs/VALIDATION.md).
+  than 3 kn, or bow-first (track direction within 90° of its heading) above 1 kn, and a
+  departure ends an active drag alert. 3 kn kept after the replay: it removed only real
+  departures, 2 kn changed nothing, 4–5 kn let one small yacht through.
 - **Sound only near the own anchor.** A drag alert is `alarm` with `visual` and
   `sound` when the vessel is within two swing radii (the larger of its own and the
   own anchor's) of the own anchor, otherwise `warn` with `visual` only. Without an own
@@ -361,8 +368,8 @@ radius and count.
 - Wind hint removed from code, config and published data (§2.5, 8392156).
 
 ### 10.2 Needed for 1.0.0
-- Overlap and drag alerts (§2.7, decided 2026-11-18). Built 2026-11-19; departure
-  filter still to be tuned on recorded data.
+- Overlap and drag alerts (§2.7, decided 2026-11-18). Built 2026-11-19; replayed on
+  25 days of recorded AIS, false drag alarms being reduced (docs/VALIDATION.md).
 - Seed tracks from the tracks plugin on start (§8, decided 2026-11-18).
 - Webapp opens on the own vessel's position (§7, decided 2026-11-19). Done.
 - Estimates drawn as vector shapes in Freeboard-SK (≥ 3.4) through a plotter

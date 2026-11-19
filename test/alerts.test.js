@@ -123,8 +123,8 @@ test('drag: fixes inside the circle plus margin never alarm', () => {
 test('drag: one outside fix is not enough, a second 90 s later raises', () => {
   const m = setup()
   assert.deepStrictEqual(m.onFix('7', fix(0, 500 + 70, 0), 0), []) // 30 m outside, 1st
-  assert.deepStrictEqual(m.onFix('7', fix(60, 500 + 72, 0), 60), []) // 2 fixes but only 60 s
-  const out = m.onFix('7', fix(120, 500 + 75, 0), 120)
+  assert.deepStrictEqual(m.onFix('7', fix(60, 500 + 75, 0), 60), []) // 2 fixes but only 60 s
+  const out = m.onFix('7', fix(120, 500 + 82, 0), 120)
   assert.strictEqual(out.length, 1)
   assert.strictEqual(out[0].path, 'notifications.anchorMapper.dragging.7')
   assert.match(out[0].value.message, /Possible drag: MMSI 7 is \d+ m outside its swing circle/)
@@ -156,7 +156,7 @@ test('drag: sound alarm only near the own anchor, otherwise a silent warning', (
   const loud = setup({}, own(0, 0, 100))
   loud.estimates.set('7', est('7', 250, 0, 40)) // vessel anchored 250 m away, drifts toward us
   loud.onFix('7', fix(0, 250 - 70, 0), 0)
-  const a = loud.onFix('7', fix(180, 250 - 75, 0), 180)
+  const a = loud.onFix('7', fix(180, 250 - 82, 0), 180)
   assert.strictEqual(a[0].value.state, 'alarm')
   assert.deepStrictEqual(a[0].value.method, ['visual', 'sound'])
   // far from the own anchor: warn without sound
@@ -174,7 +174,7 @@ test('drag: sound alarm only near the own anchor, otherwise a silent warning', (
 test('drag: back inside by more than half the margin clears, in the band it stays', () => {
   const m = setup()
   m.onFix('7', fix(0, 500 + 70, 0), 0)
-  m.onFix('7', fix(180, 500 + 75, 0), 180) // raised
+  m.onFix('7', fix(180, 500 + 82, 0), 180) // raised
   assert.deepStrictEqual(m.onFix('7', fix(360, 500 + 55, 0), 360), []) // 15 m outside the circle > margin/2 = 10: stays
   const out = m.onFix('7', fix(540, 500 + 45, 0), 540) // 5 m outside <= 10: clears
   assert.strictEqual(out[0].value.state, 'normal')
@@ -228,7 +228,7 @@ test('drag: flapping at the boundary does not toggle the alert', () => {
   let t = 0
   const next = (x) => out.push(...m.onFix('7', fix((t += 180), 500 + x, 0), t))
   next(70) // outside, counting
-  next(75) // raised
+  next(85) // raised
   for (let i = 0; i < 10; i++) next(i % 2 ? 62 : 68) // wobble 22-28 m outside, margin band
   assert.strictEqual(out.filter((c) => c.value.state === 'normal').length, 0)
 })
@@ -254,5 +254,38 @@ test('clearAll sets every active alert back to normal', () => {
   const out = m.clearAll()
   assert.ok(out.length >= 2)
   assert.ok(out.every((c) => c.value.state === 'normal'))
+  assert.deepStrictEqual(m.alertsOf('7'), [])
+})
+
+test('drag: a boat sitting still outside its circle is not dragging', () => {
+  const m = setup()
+  let out = []
+  for (let i = 0; i < 30; i++) out = out.concat(m.onFix('7', fix(i * 180, 500 + 75 + (i % 2), 0), i * 180))
+  assert.deepStrictEqual(out, [])
+  assert.deepStrictEqual(m.alertsOf('7'), [])
+})
+
+test('drag: an alarm ends when the boat has settled still outside for 30 minutes', () => {
+  const m = setup()
+  m.onFix('7', fix(0, 500 + 70, 0), 0)
+  m.onFix('7', fix(180, 500 + 85, 0), 180) // raised: drifting
+  assert.deepStrictEqual(m.alertsOf('7'), ['dragging'])
+  let out = []
+  // then it stays put at 100 m for well over 30 min
+  for (let i = 1; i <= 14; i++) out = out.concat(m.onFix('7', fix(180 + i * 180, 500 + 100 + (i % 2), 0), 180 + i * 180))
+  assert.ok(out.some((c) => c.value.state === 'normal'), 'alarm cleared')
+  assert.deepStrictEqual(m.alertsOf('7'), [])
+  // and it does not come back while it sits there
+  out = []
+  for (let i = 15; i <= 30; i++) out = out.concat(m.onFix('7', fix(180 + i * 180, 500 + 100 + (i % 2), 0), 180 + i * 180))
+  assert.deepStrictEqual(out, [])
+})
+
+test('drag: a boat that leaves while an alarm is up ends the alarm', () => {
+  const m = setup()
+  m.onFix('7', fix(0, 500 + 70, 0), 0)
+  m.onFix('7', fix(180, 500 + 85, 0), 180)
+  const out = m.onFix('7', fix(240, 500 + 285, 0), 240) // 200 m in 60 s
+  assert.strictEqual(out[0].value.state, 'normal')
   assert.deepStrictEqual(m.alertsOf('7'), [])
 })

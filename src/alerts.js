@@ -12,6 +12,8 @@ const DEFAULTS = {
   dragMarginFrac: 0.25,
   dragSeconds: 90, // outside for at least this long...
   dragMinFixes: 2, // ...over at least this many fixes
+  dragMovedM: 10, // ...and having moved at least this far while outside (a boat sitting still is not dragging)
+  settleS: 1800, // a boat that sits still outside for this long has settled, not dragged
   alertDoubtful: false,
   holdS: 600, // a drag alert outlives its estimate this long
   departureKn: 3, // faster than this is a boat leaving, not dragging
@@ -238,17 +240,27 @@ class AlertMonitor {
     const margin = this._marginFor(ref.radiusM)
     const d = distanceM(fix, ref.center) - ref.radiusM // metres outside the swing circle
 
-    if (this._departing(fix, prev) && !v.dragging) {
+    if (this._departing(fix, prev)) {
+      // A boat leaving: no alarm, and an active one ends.
       v.outside = []
-      v.frozen = null
+      if (v.dragging) this._clearDrag(id, v, changes)
+      else v.frozen = null
+      this._forget(id)
       return changes
     }
     if (d > margin) {
       if (v.outside.length === 0) v.frozen = ref
       v.outside.push({ t: fix.t, latitude: fix.latitude, longitude: fix.longitude })
-      const first = v.outside[0]
-      if (v.dragging || (v.outside.length >= this.o.dragMinFixes && fix.t - first.t >= this.o.dragSeconds)) {
-        this._raiseDrag(id, v, v.last, changes)
+      if (this._settled(v, fix)) {
+        // Sitting still outside for a long time: it has moved to a new spot, not dragged.
+        const here = v.outside[v.outside.length - 1]
+        if (v.dragging) this._clearDrag(id, v, changes)
+        v.outside = [here]
+      } else {
+        const first = v.outside[0]
+        const moved = distanceM(first, fix) >= this.o.dragMovedM
+        const long = v.outside.length >= this.o.dragMinFixes && fix.t - first.t >= this.o.dragSeconds
+        if (v.dragging || (long && moved)) this._raiseDrag(id, v, v.last, changes)
       }
     } else if (d <= margin / 2) {
       // Back inside by more than half the margin: the alert clears.
@@ -261,6 +273,13 @@ class AlertMonitor {
     }
     this._forget(id)
     return changes
+  }
+
+  // Outside for at least settleS and not moving more than dragMovedM over that time.
+  _settled(v, fix) {
+    const run = v.outside
+    if (run.length < 2 || fix.t - run[0].t < this.o.settleS) return false
+    return run.every((f) => fix.t - f.t > this.o.settleS || distanceM(f, fix) <= this.o.dragMovedM)
   }
 
   _raiseDrag(id, v, fix, changes) {
