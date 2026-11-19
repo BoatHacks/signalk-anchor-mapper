@@ -71,6 +71,25 @@ Changes tried after this: no hint for possibly-moored swings, wind taken from th
 
 **Decision (2026-11-18): the wind hint was removed.** It stayed too weak on recorded data to be worth its configuration and output fields, so the plugin uses no wind data. The code is in history at 8da227f and 90f25b7 if a gridded source (35 to 40 degrees offline) is ever worth a retry.
 
+### Drag alerts replayed on recorded AIS (2026-11-19)
+
+The alert monitor was replayed over the same recorded data (2.0 M fixes, 824 vessels, 25 Oct to 19 Nov 2026): every 5 minutes the anchor analysis on each vessel's last 12 h, every fix fed to the monitor, no own anchor set. Four runs, each after a fix:
+
+| Run | Logic | Drag alarms | Vessels | Time with an alarm up |
+|---|---|---|---|---|
+| 1 | 90 s outside, 2 fixes, departure filter 3 kn / bow-first | 22 | 9 | about 158 h (longest 88 h) |
+| 2 | plus 10 m movement, settle after 30 min, departure ends an alarm | 25 | 8 | 46 h (longest 16 h) |
+| 3 | movement by half-run means (15 m), settled-before rule, silence after a departure | 12 | 7 | 21 h |
+| 4 | rest in the band needs 3x movement, silence by estimate centre | 11 | 7 | 21 h |
+
+Run 4 classified: 5 real departures, 5 repositionings, 1 doubtful slow creep (215621000, about 100 m over hours), 0 false. 19 of 26 days had no drag alarm.
+
+- **Departure filter.** At 3 kn it removed 3 alarms, all real departures; 2 kn changed nothing; 4 and 5 kn let one 12 m yacht leaving without heading through. 3 kn stays.
+- **False alarms in run 1** were small pleasure boats (16 to 27 m circles) resting just outside the circle for hours, a cargo ship hovering at the margin, and a stale circle on a ship that had moved. They are what the movement, settle and rest rules target.
+- **Departure re-alarms.** After a departure the old estimate lingers up to one cycle and re-raised the alarm 2 to 3 times; the plugin now stays quiet until the estimate ends or its centre moves 50 m. Not by `since`, which slides for stays longer than the 12 h history.
+- **Synthetic drags** (0.3 and 1 kn, 20 m and 120 m circles): 1.5 to 3 min after crossing the margin without a rest; with a 40 min rest in the band a 1 kn drag alarms after 3 min and a 0.3 kn drag after 9 min at 30 s reports (6 min at the 3 min class B rate). A rest followed by jitter of up to 20 m never alarmed; at 25 m, 1 of 5 seeds did.
+- **Known misses:** a drag slower than about 10 m in 30 min, and a slow drag after a long rest, are late or missed. Accepted for 1.0.0; the live run on one server is the real test, and any false drag alarm there still blocks the release.
+
 ## Pitfalls found
 
 - Approach and departure tracks pulled into an episode distort the circle fit badly and can make a berth look like a 250 m swing. The dense-core trim fixes this. It must be a single pass: iterating collapses a ring onto its densest arc.

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.2.0 (2026-11-19)
 
 - Overlap and drag alerts as SignalK notifications on the own vessel (`notifications.anchorMapper.overlap.<mmsi>`, `.dragging.<mmsi>`). Overlap warns when another boat's swing circle comes within a margin of yours; drag alarms when an anchored boat stays outside its swing circle plus a margin, with a sound alarm only near your own anchor. Advisory only, not an anchor watch
 - Alerts only on strong estimates by default; boats leaving under way are not reported as dragging; a boat sitting still outside its circle is not either; an "Alerts" settings group
@@ -8,7 +8,7 @@
 - Stopping the plugin clears the anchor data it published on other vessels and sets its notifications to normal
 - The publisher moved out of `index.js` into `src/publish.js` (no other change)
 
-## 0.1.0 (unreleased)
+## 0.1.0 (never released separately)
 
 - Initial scaffold: stationary-episode detection, trimmed circle fit, "possibly-moored" and "possible-mooring-buoy" tags
 - Publishes `navigation.anchor.position`, `navigation.anchor.maxRadius` and `navigation.anchor.estimate` per anchored vessel
