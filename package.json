@@ -1,6 +1,6 @@
 {
   "name": "signalk-anchor-mapper",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "SignalK Server plugin that estimates where other vessels are anchored (position and swing radius) from their AIS tracks and publishes it",
   "main": "index.js",
   "files": [
