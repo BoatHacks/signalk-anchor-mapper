@@ -29,9 +29,11 @@ Decided with Tobi on 2026-11-19, on top of the SPEC text:
 - sound alarm only within two swing radii of the own anchor, else a silent `warn`;
 - after replaying 25 days of recorded AIS (22 drag alarms, most false): an alarm needs
   movement outward (half-run means, 15 m), a boat that sat beyond the circle 30 min
-  before crossing the margin cannot start one, a boat still outside for 30 min has
+  before crossing the margin must move 3x as far out (a flat ban missed a synthetic
+  drag after a 40 min rest), a boat still outside for 30 min has
   settled and its alarm ends, and a departure ends an alarm and silences the vessel
-  until its estimate changes (run 2 showed 2 to 3 re-alarms per departure otherwise);
+  until its estimate ends or its centre moves 50 m (not by `since`, which slides for
+  stays over 12 h) (run 2 showed 2 to 3 re-alarms per departure otherwise);
 - tagged boats can raise overlap warnings but never drag alarms; weak never alerts
   unless "alert on doubtful estimates" is on;
 - wording short, no disclaimer on the alert (advisory note in the README);

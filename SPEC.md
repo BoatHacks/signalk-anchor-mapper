@@ -141,8 +141,8 @@ All alerts are advisory estimates, not an anchor watch.
   the outside run must show real movement outward (the mean distance outside over the
   second half of the run at least 15 m beyond that of the first half, so GPS jitter of
   10 to 25 m does not count); a boat that stayed more than half the margin beyond its
-  circle for 30 minutes before crossing the margin has settled there and cannot start
-  a drag; and a boat that stays outside for 30 minutes without moving more than 15 m
+  circle for 30 minutes before crossing the margin rests there, so it must move three
+  times as far out (45 m) before it counts as dragging; and a boat that stays outside for 30 minutes without moving more than 15 m
   has settled, so its alarm ends and the run starts over. The replay showed most false
   alarms were small boats sitting just outside a small circle for hours. A drag
   slower than about 10 m in 30 minutes is not caught: accepted.

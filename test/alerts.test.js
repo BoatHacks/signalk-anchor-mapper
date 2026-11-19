@@ -298,7 +298,7 @@ test('drag: GPS jitter outside the circle is not movement outward', () => {
   assert.deepStrictEqual(out, [])
 })
 
-test('drag: a boat that sat beyond the circle for 30 minutes before crossing the margin is not dragging', () => {
+test('drag: a boat that sat beyond the circle for 30 minutes before crossing the margin needs a clear move', () => {
   const m = setup()
   let out = []
   // 45 min in the band (10 to 20 m outside the circle), then a small step across the margin
@@ -306,6 +306,17 @@ test('drag: a boat that sat beyond the circle for 30 minutes before crossing the
   out = out.concat(m.onFix('7', fix(15 * 180, 500 + 70, 0), 15 * 180))
   out = out.concat(m.onFix('7', fix(16 * 180, 500 + 90, 0), 16 * 180))
   assert.deepStrictEqual(out, [])
+})
+
+test('drag: a real drag after a long rest in the band still alarms', () => {
+  const m = setup()
+  let out = []
+  for (let i = 0; i < 15; i++) out = out.concat(m.onFix('7', fix(i * 180, 500 + 54, 0), i * 180)) // resting
+  // then drifts away at about 9 m/min (0.3 kn)
+  for (let i = 1; i <= 12; i++) out = out.concat(m.onFix('7', fix((14 + i) * 180, 500 + 54 + i * 27, 0), (14 + i) * 180))
+  const raised = out.find((c) => c.value.state !== 'normal')
+  assert.ok(raised, 'alarm raised')
+  assert.ok(out.indexOf(raised) < 8 * 1, 'within a few reports of crossing')
 })
 
 test('drag: after a departure the vessel stays quiet while its estimate lingers, and speaks again for a new one', () => {
@@ -318,7 +329,7 @@ test('drag: after a departure the vessel stays quiet while its estimate lingers,
   for (let i = 1; i <= 6; i++) out = out.concat(m.onFix('7', fix(240 + i * 180, 500 + 300 + i * 30, 0), 240 + i * 180))
   assert.deepStrictEqual(out, [])
   // a new estimate (a new stay) starts afresh
-  m.onCycle([est('7', 900, 0, 40, { since: 'later' })], 2000)
+  m.onCycle([est('7', 900, 0, 40)], 2000)
   m.onFix('7', fix(3000, 900 + 70, 0), 3000)
   assert.strictEqual(m.onFix('7', fix(3180, 900 + 90, 0), 3180)[0].value.state, 'warn')
 })
