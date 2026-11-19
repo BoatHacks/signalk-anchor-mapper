@@ -167,3 +167,33 @@ test('constant heading with a small wobble (alongside a berth) is not mistaken f
   }
   assert.strictEqual(analyzeTrack(track)[0].verdict, 'still')
 })
+
+// Class B GPS jitter at a berth or on land: a blob of 9 to 12 m with no heading at all.
+function jitterBlob({ hours = 6, noiseM = 5, stepS = 180, seed = 11, heading = false }) {
+  const rand = rng(seed)
+  const out = []
+  for (let i = 0; i < (hours * 3600) / stepS; i++) {
+    const p = proj.toLatLon(gauss(rand) * noiseM, gauss(rand) * noiseM)
+    const fix = { t: i * stepS, lat: p.latitude, lon: p.longitude }
+    if (heading) fix.heading = rand() * 2 * Math.PI
+    out.push(fix)
+  }
+  return out
+}
+
+test('class B jitter blob above the still cutoff, without heading, is still', () => {
+  const e = analyzeTrack(jitterBlob({}))[0]
+  assert.ok(e.fit.coreSpreadM >= 8, `core spread ${e.fit.coreSpreadM} must pass the 8 m gate`)
+  assert.strictEqual(e.verdict, 'still')
+})
+
+test('the same blob from a vessel that sends headings keeps its area estimate', () => {
+  const e = analyzeTrack(jitterBlob({ heading: true }))[0]
+  assert.strictEqual(e.verdict, 'anchor-area')
+})
+
+test('a large area without heading is kept', () => {
+  const e = analyzeTrack(jitterBlob({ noiseM: 15 }))[0]
+  assert.ok(e.area.semiMajorM > 25)
+  assert.strictEqual(e.verdict, 'anchor-area')
+})

@@ -82,6 +82,10 @@ implementation convenience. Thresholds are justified in docs/VALIDATION.md.
 
 ### 2.2 Still versus swinging
 - Under 8 m core spread is "still" (berth, mooring line, jitter) and is not published.
+- An area-only result (§2.3, step 3) with a semi-major axis of 25 m or less, from a
+  stay with fewer than 5 heading fixes, is also "still". Class B GPS jitter at a berth
+  or on land reaches 9 to 12 m and passes the 8 m cut, but it is a blob that says
+  nothing about an anchor.
 
 ### 2.3 Locating the anchor, in order of preference
 1. **Heading rays** (needs ≥ 30 fixes with heading, mostly class A). A boat lying to

@@ -90,6 +90,21 @@ Run 4 classified: 5 real departures, 5 repositionings, 1 doubtful slow creep (21
 - **Synthetic drags** (0.3 and 1 kn, 20 m and 120 m circles): 1.5 to 3 min after crossing the margin without a rest; with a 40 min rest in the band a 1 kn drag alarms after 3 min and a 0.3 kn drag after 9 min at 30 s reports (6 min at the 3 min class B rate). A rest followed by jitter of up to 20 m never alarmed; at 25 m, 1 of 5 seeds did.
 - **Known misses:** a drag slower than about 10 m in 30 min, and a slow drag after a long rest, are late or missed. Accepted for 1.0.0; the live run on one server is the real test, and any false drag alarm there still blocks the release.
 
+### Harbor jitter blobs (2026-11-19)
+
+On the live server three class B yachts gave area estimates while sitting still: one on land in a boatyard, two in a marina. None sends a heading. Their fixes form blobs with a 95th percentile spread of 8 to 18 m, evenly in all directions, and SOG 0. Class B jitter here reaches 9 to 12 m, above the 8 m "still" cut. The ring test rejected them (ring ratio about 2), but the classifier fell through to an area estimate. Right after a restart, with only 3 h of track, the spread looks larger and more of them pass.
+
+Replay of the live loop (12 h window every 30 min, 25 Oct to 19 Nov 2026, 2.03 M fixes, 675 vessels): 111 stays flagged at some point. Ground truth: 28 class A "anchored", 11 class A "moored", 5 class A other, 67 class B or no state; 45 of the class B stays within 1.5 km of the own boat (the harbor).
+
+| Rule turning a stay into "still" | Removed | Anchored class A lost | Harbor class B caught (of 45) |
+|---|---|---|---|
+| Area, round (minor/major at least 0.5), semi-major up to 25 m | 46 | 4 | 31 |
+| Same, semi-major up to 20 m | 45 | 4 | 30 |
+| Still cut raised from 8 to 15 m | 73 | 8 | 43 |
+| **Area, fewer than 5 heading fixes, semi-major up to 25 m** | 46 | **0** | **42** |
+
+The round-blob rule lost four anchored ships off Tarragona: 2 to 4.5 h fragments with 20 to 28 heading fixes, below the 30 the heading method needs. Many harbor blobs are elongated (roundness 0.23 to 0.49), so a roundness test also misses them. The 15 m cut lost eight anchored ships and some class B ring fits. The chosen rule (last row) removes no class A stay of any kind and never touches a placed anchor; 20 m gives the same set. Four removed class B stays lie more than 1.5 km out; the one inspected is a 10 m blob. The accepted cost: a class B yacht genuinely anchored with a very tight swing loses an area estimate that did not place the anchor anyway.
+
 ## Pitfalls found
 
 - Approach and departure tracks pulled into an episode distort the circle fit badly and can make a berth look like a 250 m swing. The dense-core trim fixes this. It must be a single pass: iterating collapses a ring onto its densest arc.

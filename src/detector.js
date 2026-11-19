@@ -15,6 +15,10 @@ const DEFAULTS = {
   maxSwingRadiusM: 350,
   minInlierFraction: 0.5,
   tightSwingM: 15, // fits with a smaller 95th percentile radius are tagged "possibly-moored"
+  // An area estimate this small from a vessel that sends (almost) no heading is fix
+  // jitter at a berth or on land, not a swing (class B GPS jitter reaches 9 to 12 m).
+  maxJitterAreaM: 25, // semi-major axis of the occupied area
+  minHeadedForArea: 5, // fewer headed fixes than this counts as "no heading"
   minRingRatio: 4, // fitted radius must span this many residual widths, else the track is a blob or a short arc
   // Heading based anchor location
   minHeadedFixes: 30,
@@ -315,8 +319,10 @@ function anchorFromHeadings(points, opts = {}) {
  * method (for 'anchor'): 'heading' (bow headings meet at the anchor) or 'ring-fit'
  * quality: 'strong' for a clean fit, 'weak' for a plausible but noisier one
  * tags: ['possibly-moored'] for swings tighter than opts.tightSwingM
+ * headedFixes: fixes with a heading in the episode. A small area from a vessel with
+ *   (almost) no heading is jitter and becomes 'still'.
  */
-function classify(fit, heading, opts = {}) {
+function classify(fit, heading, opts = {}, headedFixes = Infinity) {
   const o = { ...DEFAULTS, ...opts }
   if (!fit || fit.coreSpreadM < o.minSwingM) return { verdict: 'still', quality: null, tags: [] }
 
@@ -350,6 +356,9 @@ function classify(fit, heading, opts = {}) {
     }
   }
 
+  if (headedFixes < o.minHeadedForArea && fit.area.semiMajorM <= o.maxJitterAreaM) {
+    return { verdict: 'still', quality: null, tags: [] }
+  }
   const tags = fit.coreSpreadM < o.tightSwingM ? ['possibly-moored'] : []
   return { verdict: 'anchor-area', quality: null, tags, area: fit.area }
 }
@@ -367,7 +376,8 @@ function analyzeTrack(fixes, opts = {}) {
     const lon = pts.reduce((s, p) => s + p.lon, 0) / pts.length
     const fit = fitEpisode(pts.map((p) => ({ lat: p.lat, lon: p.lon })))
     const heading = anchorFromHeadings(pts, opts)
-    const cls = classify(fit, heading, opts)
+    const headed = pts.reduce((c, p) => c + (Number.isFinite(p.heading) ? 1 : 0), 0)
+    const cls = classify(fit, heading, opts, headed)
     return {
       t0: e.t0,
       t1: e.t1,
