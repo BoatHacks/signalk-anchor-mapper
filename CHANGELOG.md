@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Vessel names now show in the `anchored-vessels` features and in alert messages. The server keeps `name` as a plain string, which was read as `{ value }` and came out empty
+
 ## 0.2.1 (2026-11-19)
 
 - Fewer false estimates for berthed boats and boats on land: a small occupied area (semi-major axis up to 25 m) from a vessel that sends no heading is now treated as sitting still, not as an area estimate. Class B GPS jitter in a marina reaches 9 to 12 m and used to pass the 8 m "still" cut

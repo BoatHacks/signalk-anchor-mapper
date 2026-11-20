@@ -5,10 +5,20 @@ const plotterext = require('./plotterext')
 const RESOURCE_TYPE = 'anchored-vessels'
 
 /**
+ * The vessel's name from the full data model. The server keeps `name` at the vessel
+ * root as a plain string (not a { value } leaf), so accept both shapes.
+ */
+function vesselName(app, context) {
+  const n = app.getPath && app.getPath(`${context}.name`)
+  if (typeof n === 'string') return n || undefined
+  return (n && typeof n.value === 'string' && n.value) || undefined
+}
+
+/**
  * Feature served by the `anchored-vessels` resource provider (SPEC 6.2).
  */
 function toFeature(app, e, alerts) {
-  const name = app.getPath && app.getPath(`${e.context}.name`) && app.getPath(`${e.context}.name`).value
+  const name = vesselName(app, e.context)
   return {
     type: 'Feature',
     id: e.id,
@@ -174,4 +184,4 @@ function createPublisher(app, pluginId, deps = {}) {
   return { publish, current, clearAll, registerResources }
 }
 
-module.exports = { createPublisher, toFeature, RESOURCE_TYPE }
+module.exports = { createPublisher, toFeature, vesselName, RESOURCE_TYPE }

@@ -111,3 +111,9 @@ test('toFeature names the vessel when the server knows it', () => {
   assert.deepStrictEqual(f.geometry.coordinates, [0.6, 40.6])
   assert.strictEqual(f.properties.radiusMeters, 40)
 })
+
+test('toFeature reads the name the way the server stores it: a plain string at the vessel root', () => {
+  const app = { getPath: (p) => (p === `${ctx}.name` ? 'MALTA CEMENT' : undefined) }
+  const f = toFeature(app, area)
+  assert.strictEqual(f.properties.name, 'MALTA CEMENT')
+})

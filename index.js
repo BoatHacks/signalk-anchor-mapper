@@ -6,7 +6,7 @@ const { tagRepeatUse } = require('./src/repeat-use')
 const { seed } = require('./src/seed')
 const { AlertMonitor, DEFAULTS: ALERT_DEFAULTS } = require('./src/alerts')
 const plotterext = require('./src/plotterext')
-const { createPublisher, RESOURCE_TYPE } = require('./src/publish')
+const { createPublisher, vesselName, RESOURCE_TYPE } = require('./src/publish')
 const { version } = require('./package.json')
 
 const MMSI_RE = /mmsi:(\d+)/
@@ -260,10 +260,7 @@ module.exports = function (app) {
     store = new TrackStore({ maxAgeS: (options.historyHours ?? 12) * 3600 })
     running = true
     ownAnchor = { position: null, radius: null }
-    alerts = new AlertMonitor(options.alerts || {}, (id) => {
-      const n = app.getPath && app.getPath(`vessels.urn:mrn:imo:mmsi:${id}.name`)
-      return n && n.value
-    })
+    alerts = new AlertMonitor(options.alerts || {}, (id) => vesselName(app, `vessels.urn:mrn:imo:mmsi:${id}`))
     publisher.registerResources()
     app.subscriptionmanager.subscribe(
       {
