@@ -197,3 +197,70 @@ test('a large area without heading is kept', () => {
   assert.ok(e.area.semiMajorM > 25)
   assert.strictEqual(e.verdict, 'anchor-area')
 })
+
+// Caneel Bay (USVI) class B yachts: a dense cluster on the west side most of the
+// time, with a sparse tail now and then up to about 25 m east. The shape must hold
+// the eastern fixes too, not just the dense part.
+function lopsidedStay({ hours = 26, stepS = 300, seed = 21, ring = 0 }) {
+  const rand = rng(seed)
+  const out = []
+  const n = (hours * 3600) / stepS
+  for (let i = 0; i < n; i++) {
+    let x, y
+    if (i % 12 === 5 || i % 12 === 6) {
+      x = 8 + rand() * 17 // the eastern tail
+      y = gauss(rand) * 3
+    } else if (ring) {
+      const a = Math.PI / 2 + (rand() - 0.5) * 2.4 // swinging round the western half
+      x = ring * Math.cos(a) - ring + 4
+      y = ring * Math.sin(a)
+    } else {
+      x = -6 + gauss(rand) * 4
+      y = gauss(rand) * 3
+    }
+    const p = proj.toLatLon(x, y)
+    // A few random headings so the 80236c6 jitter rule (no heading, small area) leaves it alone.
+    out.push({ t: i * stepS, lat: p.latitude, lon: p.longitude, heading: i % 20 === 0 ? rand() * 2 * Math.PI : undefined })
+  }
+  return out
+}
+
+function insideEllipse(fix, area) {
+  const P = makeProjection(area.center.latitude, area.center.longitude)
+  const [x, y] = P.toXY(fix.lat, fix.lon)
+  const b = ((90 - area.bearingDeg) * Math.PI) / 180 // major axis from +x
+  const u = x * Math.cos(b) + y * Math.sin(b)
+  const v = -x * Math.sin(b) + y * Math.cos(b)
+  return (u / area.semiMajorM) ** 2 + (v / area.semiMinorM) ** 2 <= 1 + 1e-6
+}
+
+test('an area estimate holds every fix of the stay, not just the dense side', () => {
+  const track = lopsidedStay({})
+  const e = analyzeTrack(track)[0]
+  assert.strictEqual(e.verdict, 'anchor-area')
+  const out = track.filter((f) => !insideEllipse(f, e.area))
+  assert.strictEqual(out.length, 0, `${out.length} fixes outside the area`)
+  assert.ok(e.coreArea.semiMajorM < e.area.semiMajorM)
+})
+
+test('a swing radius holds every fix of the stay', () => {
+  for (const e of [analyzeTrack(ringTrack({ r: 30, hours: 8 }))[0], analyzeTrack(sectorTrack({}))[0]]) {
+    assert.strictEqual(e.verdict, 'anchor')
+    const P = makeProjection(e.center.latitude, e.center.longitude)
+    const track = e.method === 'heading' ? sectorTrack({}) : ringTrack({ r: 30, hours: 8 })
+    const far = Math.max(...track.map((f) => Math.hypot(...P.toXY(f.lat, f.lon))))
+    assert.ok(e.swingRadiusM >= far - 1e-6, `radius ${e.swingRadiusM} < farthest fix ${far}`)
+    assert.ok(e.swingRadiusM >= e.coreRadiusM)
+  }
+})
+
+test('the approach is not counted in the covering radius', () => {
+  // Motoring in at 1.5 kn and dropping the hook at the anchor spot.
+  const approach = []
+  for (let i = 0; i < 40; i++) {
+    const p = proj.toLatLon(920 - (i + 1) * 23, 0)
+    approach.push({ t: i * 30, lat: p.latitude, lon: p.longitude })
+  }
+  const e = analyzeTrack([...approach, ...ringTrack({ r: 30, hours: 8, t0: 1200 })]).find((x) => x.verdict === 'anchor')
+  assert.ok(e && e.swingRadiusM < 50, `radius ${e && e.swingRadiusM}`)
+})

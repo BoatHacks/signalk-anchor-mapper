@@ -54,10 +54,10 @@ the author's: other regions and AIS densities, servers without the tracks plugin
 | **Dwell** | Duration of an episode. An episode only counts once it reaches the minimum dwell (default 2 h). |
 | **Ongoing episode** | The episode the vessel is in now. Only ongoing episodes are published. |
 | **Swing** | The movement of an anchored boat around its anchor as wind and current change. |
-| **Swing radius** | 95th percentile distance of the vessel's fixes from the estimated anchor. Published as `maxRadius`. |
+| **Swing radius** | Distance from the estimated anchor to the farthest fix of the stay (approach, departure and lone glitches left out), so the circle holds every position the boat took. Published as `maxRadius`. |
 | **Still** | An episode whose core spread is under 8 m: a berth, a mooring line or GPS jitter. Not an anchor. |
 | **Anchor estimate** | A result with a placed anchor point and swing radius (`kind: anchor`). |
-| **Area estimate** | A result where the vessel clearly stays and swings but no anchor point can be placed; only the occupied area (an ellipse) is given (`kind: area`). |
+| **Area estimate** | A result where the vessel clearly stays and swings but no anchor point can be placed; only the occupied area (an ellipse that holds every fix of the stay) is given (`kind: area`). |
 | **Heading ray** | The line from a fix along the vessel's true heading. Bow points at anchor, so rays meet at the anchor. |
 | **Ring fit** | A circle fitted to the track. Trusted only if the track covers a real ring (§2). |
 | **Anchoring record** | One finished (or still ongoing) anchoring of one vessel, kept in the atlas (§4.2). |
@@ -102,6 +102,16 @@ implementation convenience. Thresholds are justified in docs/VALIDATION.md.
 Understating a swing radius is worse than reporting none: a skipper would anchor
 inside someone's circle. When the evidence does not place the anchor, the plugin
 says so (area estimate) rather than guessing.
+
+The drawn circle or area holds every fix of the stay (decided 2026-11-19, after
+the Caneel Bay class B tracks): a boat that lay to one side most of the time and
+swung the other way now and then still has those positions inside its shape. Only
+the approach and departure (moving faster than 1 kn or outside the dense core) and
+lone jumps of over 30 m that come straight back are left out. The anchor point and
+the tags (§2.2, §2.6) still come from the trimmed dense core, so the jitter and
+possibly-moored rules are unchanged; only the published radius or area grows. A
+larger radius makes drag alerts a little later and overlap warnings a little
+earlier, which is the safer side.
 
 ### 2.5 Wind is not used
 A yacht at anchor points roughly into the wind, so wind looks like a way to place
@@ -212,7 +222,7 @@ the dragging alert clears with it after a hold time (default 10 min) so it is se
 | `kind` | `anchor` | `area` | |
 | `method` | `headings` or `ring` | `occupied-area` | |
 | `position` | lat/lon | `null` | |
-| `maxRadius` | m | `null` | 95th percentile |
+| `maxRadius` | m | `null` | farthest fix of the stay |
 | `quality` | `strong`/`weak` | `strong`/`weak` | |
 | `tags` | list | list | §2.6 |
 | `since` | ISO time | ISO time | start of episode |

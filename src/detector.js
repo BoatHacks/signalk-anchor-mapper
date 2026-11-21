@@ -9,6 +9,8 @@ const DEFAULTS = {
   maxGapS: 30 * 60, // a reporting gap longer than this ends an episode
   minFixes: 6,
   spikeM: 100, // a fix that jumps this far away and back is a bad fix
+  coverSpeedKn: 1, // for the drawn shape: arriving or leaving faster than this is not part of the stay
+  coverSpikeM: 30, // for the drawn shape: a lone fix this far out and straight back is a glitch
   // Classification
   minSwingM: 8, // below this core spread the vessel is simply sitting still (berth, GPS jitter)
   minArcDeg: 150,
@@ -186,7 +188,7 @@ function fitEpisode(points) {
     fitted: true,
     center: proj.toLatLon(f.cx, f.cy),
     radiusM: f.r,
-    swingRadiusM: r95, // 95th percentile distance from the fitted centre
+    swingRadiusM: r95, // 95th percentile distance from the fitted centre (the published radius is widened by cover())
     rmsM: rms,
     ringRatio: f.r / Math.max(rms, 0.5), // how many residual-widths the radius spans; a blob scores low
     arcDeg: arcCoverageDeg(K, f.cx, f.cy),
@@ -230,6 +232,105 @@ function areaEllipse(K, cmx, cmy, proj) {
     semiMinorM: k * Math.sqrt(l2),
     bearingDeg: bearing
   }
+}
+
+/**
+ * The fixes of the stay itself, for the drawn shape: everything between the first
+ * and the last fix that is in the dense core and not moving faster than
+ * coverSpeedKn (that drops the approach and departure, including where they cross
+ * the swing circle), minus lone jumps that go out and come straight back. Unlike the fit, nothing in
+ * the middle of the stay is trimmed: a boat that lay west most of the time and
+ * swung east now and then was still east now and then (SPEC §2.4).
+ * xy: [[x, y]] in time order, t: their times in seconds. Returns the kept [[x, y]].
+ */
+function stayPoints(xy, t, o) {
+  if (xy.length < 3) return xy.slice()
+  const mdx = median(xy.map((p) => p[0]))
+  const mdy = median(xy.map((p) => p[1]))
+  const d = xy.map((p) => Math.hypot(p[0] - mdx, p[1] - mdy))
+  const lim = Math.max(12, 2.2 * median(d))
+  const maxV = o.coverSpeedKn * 0.514444
+  const fast = (i, j) => Math.hypot(xy[j][0] - xy[i][0], xy[j][1] - xy[i][1]) > maxV * Math.max(t[j] - t[i], 1)
+  let a = 0
+  while (a < xy.length - 1 && (d[a] > lim || fast(a, a + 1))) a++
+  let b = xy.length - 1
+  while (b > a && (d[b] > lim || fast(b - 1, b))) b--
+  const P = xy.slice(a, b + 1)
+  const out = []
+  for (let i = 0; i < P.length; i++) {
+    if (i > 0 && i < P.length - 1) {
+      const da = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1])
+      const db = Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1])
+      const dc = Math.hypot(P[i + 1][0] - P[i - 1][0], P[i + 1][1] - P[i - 1][1])
+      if (da > o.coverSpikeM && db > o.coverSpikeM && dc < 0.5 * Math.min(da, db)) continue
+    }
+    out.push(P[i])
+  }
+  return out
+}
+
+// Smallest radius around (cx, cy) that holds every point.
+function coverRadius(P, cx, cy) {
+  let r = 0
+  for (const p of P) r = Math.max(r, Math.hypot(p[0] - cx, p[1] - cy))
+  return r
+}
+
+/**
+ * An ellipse that holds every point: the covariance shape and orientation of the
+ * stay, centred in the middle of its extent along both axes (not on the dense
+ * part), and scaled until the outermost fix is on the edge.
+ */
+function coverEllipse(P, proj) {
+  const n = P.length
+  let mx = 0
+  let my = 0
+  for (const p of P) {
+    mx += p[0]
+    my += p[1]
+  }
+  mx /= n
+  my /= n
+  let sxx = 0
+  let syy = 0
+  let sxy = 0
+  for (const p of P) {
+    sxx += (p[0] - mx) ** 2
+    syy += (p[1] - my) ** 2
+    sxy += (p[0] - mx) * (p[1] - my)
+  }
+  const theta = 0.5 * Math.atan2(2 * sxy, sxx - syy)
+  const ux = Math.cos(theta)
+  const uy = Math.sin(theta)
+  const tr = (sxx + syy) / n
+  const disc = Math.sqrt(Math.max(0, ((sxx - syy) / (2 * n)) ** 2 + (sxy / n) ** 2))
+  const l1 = tr / 2 + disc
+  const l2 = Math.max(0, tr / 2 - disc)
+  // Middle of the extent in the ellipse's own frame.
+  let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity
+  for (const p of P) {
+    const u = p[0] * ux + p[1] * uy
+    const v = -p[0] * uy + p[1] * ux
+    u0 = Math.min(u0, u)
+    u1 = Math.max(u1, u)
+    v0 = Math.min(v0, v)
+    v1 = Math.max(v1, v)
+  }
+  const uc = (u0 + u1) / 2
+  const vc = (v0 + v1) / 2
+  const cx = uc * ux - vc * uy
+  const cy = uc * uy + vc * ux
+  // Shape from the covariance, but never thinner than a tenth of the length.
+  const a0 = Math.max(Math.sqrt(l1), 0.5)
+  const b0 = Math.max(Math.sqrt(l2), 0.1 * a0)
+  let s = 0
+  for (const p of P) {
+    const u = (p[0] - cx) * ux + (p[1] - cy) * uy
+    const v = -(p[0] - cx) * uy + (p[1] - cy) * ux
+    s = Math.max(s, Math.hypot(u / a0, v / b0))
+  }
+  const bearing = (((90 - (theta * 180) / Math.PI) % 180) + 180) % 180
+  return { center: proj.toLatLon(cx, cy), semiMajorM: s * a0, semiMinorM: s * b0, bearingDeg: bearing }
 }
 
 /**
@@ -364,6 +465,29 @@ function classify(fit, heading, opts = {}, headedFixes = Infinity) {
 }
 
 /**
+ * Make the published shape hold every fix of the stay (Tobi's rule, 2026-11-19): a
+ * boat that lay to one side most of the time must still have its other positions
+ * inside its circle. The fit and the tags keep using the trimmed core (so the
+ * jitter and possibly-moored rules are unchanged); only the radius or area that is
+ * published, drawn and alerted on grows to cover the whole stay.
+ */
+function cover(cls, pts, opts) {
+  const o = { ...DEFAULTS, ...opts }
+  if (cls.verdict !== 'anchor' && cls.verdict !== 'anchor-area') return
+  const proj = makeProjection(pts[0].lat, pts[0].lon)
+  const P = stayPoints(pts.map((p) => proj.toXY(p.lat, p.lon)), pts.map((p) => p.t), o)
+  if (P.length < 3) return
+  if (cls.verdict === 'anchor') {
+    const c = proj.toXY(cls.center.latitude, cls.center.longitude)
+    cls.coreRadiusM = cls.swingRadiusM
+    cls.swingRadiusM = Math.max(cls.swingRadiusM, coverRadius(P, c[0], c[1]))
+  } else {
+    cls.coreArea = cls.area
+    cls.area = coverEllipse(P, proj)
+  }
+}
+
+/**
  * Analyse one vessel's track. Returns one entry per stationary episode:
  * { t0, t1, ongoing, centroid, verdict, method, quality, tags, center, swingRadiusM, area, fit, heading }
  * Fixes may carry an optional `heading` (radians true) for the heading based method.
@@ -378,6 +502,7 @@ function analyzeTrack(fixes, opts = {}) {
     const heading = anchorFromHeadings(pts, opts)
     const headed = pts.reduce((c, p) => c + (Number.isFinite(p.heading) ? 1 : 0), 0)
     const cls = classify(fit, heading, opts, headed)
+    cover(cls, pts, opts)
     return {
       t0: e.t0,
       t1: e.t1,

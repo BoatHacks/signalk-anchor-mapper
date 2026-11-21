@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Swing circles and areas now hold every position of the stay, not just the dense part. A boat that lay to one side most of the time and swung the other way now and then had those positions cut off (the radius was a 95th percentile of the trimmed core, the area a 95% ellipse around it). The radius now reaches the farthest fix and the area ellipse is centred in the middle of the stay and grown to hold every fix; the approach, departure and lone GPS jumps are left out. Tags and the still rules are unchanged
 - Vessel names now show in the `anchored-vessels` features and in alert messages. The server keeps `name` as a plain string, which was read as `{ value }` and came out empty
 
 ## 0.2.1 (2026-11-19)

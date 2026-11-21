@@ -33,7 +33,7 @@ There are no harbor or marina polygons. Boats berthed in a marina show up as "st
 For every vessel judged to be anchored, on that vessel's own context (`vessels.urn:mrn:imo:mmsi:...`):
 
 - `navigation.anchor.position`: `{ latitude, longitude }` of the estimated anchor
-- `navigation.anchor.maxRadius`: swing radius in metres (95th percentile distance of the vessel from the anchor)
+- `navigation.anchor.maxRadius`: swing radius in metres (distance from the anchor to the farthest fix of the stay, so the circle holds every position the boat took)
 - `navigation.anchor.estimate`: kind (`anchor` or `area`), method, quality, tags, start time, dwell hours, the occupied area ellipse, and a note about how it was estimated
 
 For an area-only result `position` and `maxRadius` are `null` and the ellipse is in `estimate.area`. All values are set to `null` when the vessel is no longer anchored.
