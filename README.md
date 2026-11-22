@@ -44,6 +44,8 @@ A read-only resource provider also serves the current estimates as GeoJSON featu
 
 **Advisory, not an anchor watch.** The alerts rest on estimates made from other boats' AIS tracks, which can be wrong or late. Never rely on them as your only anchor watch.
 
+**Anchor Mapper watches other boats, not yours.** It estimates where neighbouring boats are anchored and warns about drag and overlap. It does not alarm for your own boat, so you still need a regular anchor alarm plugin for that, for example [signalk-mareas-ihm](https://github.com/Aitonos/signalk-mareas-ihm), [hoekens-anchor-alarm](https://github.com/hoeken/hoekens-anchor-alarm) or [signalk-anchoralarm-plugin](https://github.com/sbender9/signalk-anchoralarm-plugin). Anchor Mapper reads the anchor position and radius they publish for your boat. **Avoid double alerts:** some of these also warn when another boat enters your swing circle, which Anchor Mapper does too. Keep that warning on in only one of them.
+
 Alerts are SignalK notifications on your own vessel:
 
 - `notifications.anchorMapper.overlap.<mmsi>`: state `warn`, method `visual`, when another boat's swing circle overlaps yours or comes within the overlap margin (10 m). Needs an anchor set on your own vessel, as an anchor alarm plugin does with `navigation.anchor.position` and `navigation.anchor.maxRadius`. Your alarm radius counts as your swing radius, so a generous alarm radius warns a little early.
