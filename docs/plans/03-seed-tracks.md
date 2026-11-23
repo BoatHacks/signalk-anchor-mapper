@@ -42,7 +42,11 @@ Manual: restart the Pi server mid-anchorage and time until the first estimate.
 - [x] `npm test`
 - [x] Real server check: signalk-server 2.37.0 + tracks plugin 3.9.1, 5 h swing fed,
       server restarted without the feed; estimate (70 m) published within 5 s
-- [ ] Pi: restart tinarasia mid-anchorage and time until the first estimate
+- [x] Pi (2026-11-23, plugin restart, not a server restart): 120 tracks seeded and the
+      first estimates published 2 s after start. A tight class B swing was lost:
+      the server replayed a position restored by signalk-questdb at 00:03, which
+      cut the seed there. Fixed on main in 6f2544d (merge by time); replay of the
+      Pi data through the plugin confirms the estimate comes back
 
 ## Files
 Create `src/seed.js`, `test/seed.test.js`. Modify `index.js`, `src/store.js`, README.md, CHANGELOG.md,

@@ -191,7 +191,10 @@ hint" (wind was removed).
 - [x] SPEC §1.2, §6, §7, §12 and ARCHITECTURE §2, §4, §5, §7 updated; README section
       "Seeing anchors in Freeboard" (needs 3.4+, reload after enabling, where the
       layer toggle is); package keywords
-- [ ] Manual check on the Pi, screenshots
+- [x] Manual check on the Pi (2026-11-23, Freeboard-SK 3.4.1, server 2.37.0, plugin 0.2.1):
+      extension listed, runtime iframe loaded, "all style layers drawn", area ellipse and
+      label drawn in night mode, tapping the dot opens the Anchor estimate window.
+      Label showed the MMSI, not the name: fixed on main in 846af69 (after 0.2.1)
 
 ## As built (2026-11-19)
 Differences from the approach above, and how it was checked:
