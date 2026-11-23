@@ -50,20 +50,34 @@ test('featuresToFixes leaves out the own vessel, imported tracks, untimed and ge
   assert.strictEqual(featuresToFixes(null, 'vessels.self').size, 0)
 })
 
-test('TrackStore.seed puts history before live fixes, thinned, and never after the first live fix', () => {
+test('TrackStore.seed merges history around live fixes by time, thinned, live fixes winning', () => {
   const store = new TrackStore({ minFixIntervalS: 30 })
   store.add(A, 1000, 1, 1)
   const hist = []
   for (let t = 0; t <= 1100; t += 10) hist.push({ t, lat: 0, lon: 0 })
   const n = store.seed(A, hist)
-  const ts = store.get(A).map((f) => f.t)
-  assert.strictEqual(ts[ts.length - 1], 1000)
+  const track = store.get(A)
+  const ts = track.map((f) => f.t)
   assert.strictEqual(n, ts.length - 1)
   for (let i = 1; i < ts.length; i++) assert.ok(ts[i] - ts[i - 1] >= 30, `gap at ${i}: ${ts}`)
-  assert.ok(ts[ts.length - 2] <= 970)
+  assert.strictEqual(track.find((f) => f.t === 1000).lat, 1) // the live fix is kept
+  assert.ok(ts[ts.length - 1] > 1000) // history after the live fix is kept too
   // a vessel with no live data gets the history as is
   assert.strictEqual(store.seed(B, [{ t: 5, lat: 1, lon: 1 }]), 1)
   assert.strictEqual(store.seed('vessels.x', []), 0)
+})
+
+test('TrackStore.seed keeps history newer than a stale replayed live fix', () => {
+  // On subscribe the server replays a position restored at server start, hours old.
+  const store = new TrackStore({ minFixIntervalS: 30 })
+  store.add(A, 3600, 1, 1)
+  store.add(A, 36000, 1, 1)
+  const hist = []
+  for (let t = 0; t <= 35000; t += 180) hist.push({ t, lat: 0, lon: 0 })
+  store.seed(A, hist)
+  const ts = store.get(A).map((f) => f.t)
+  assert.ok(ts.length > 190, `only ${ts.length} fixes`)
+  for (let i = 1; i < ts.length; i++) assert.ok(ts[i] - ts[i - 1] >= 30 && ts[i] - ts[i - 1] <= 1200, `gap at ${i}`)
 })
 
 test('buildRequest uses Temporal when there is one, epoch-millisecond instants otherwise', () => {

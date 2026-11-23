@@ -29,26 +29,37 @@ class TrackStore {
   }
 
   /**
-   * Put older fixes (oldest first, e.g. from the tracks plugin) in front of a
-   * vessel's track. Only fixes before the first live one are taken, so live
-   * data that arrived meanwhile always wins and order is kept. Returns how
-   * many were added.
+   * Merge older fixes (oldest first, e.g. from the tracks plugin) into a
+   * vessel's track by time. A live fix wins over history within
+   * minFixIntervalS of it. Merging, not cutting at the first live fix: on
+   * subscribe the server replays cached values, and one restored at server
+   * start (signalk-questdb.restore) can be hours older than the history.
+   * Returns how many were added.
    */
   seed(id, fixes) {
     const live = this.tracks.get(id) || []
-    const firstLive = live.length ? live[0].t : Infinity
+    const gap = this.minFixIntervalS
     const out = []
+    let j = 0
     for (const f of fixes) {
       if (!Number.isFinite(f.t) || !Number.isFinite(f.lat) || !Number.isFinite(f.lon)) continue
-      if (f.t > firstLive - this.minFixIntervalS) break
       const last = out[out.length - 1]
-      if (last && (f.t < last.t || f.t - last.t < this.minFixIntervalS)) continue
+      if (last && (f.t < last.t || f.t - last.t < gap)) continue
+      while (j < live.length && live[j].t < f.t) j++
+      if ((j < live.length && live[j].t - f.t < gap) || (j > 0 && f.t - live[j - 1].t < gap)) continue
       const fix = { t: f.t, lat: f.lat, lon: f.lon }
       if (Number.isFinite(f.heading)) fix.heading = f.heading
       out.push(fix)
     }
     if (out.length === 0) return 0
-    this.tracks.set(id, out.concat(live))
+    const merged = []
+    let i = 0
+    j = 0
+    while (i < out.length || j < live.length) {
+      if (j >= live.length || (i < out.length && out[i].t < live[j].t)) merged.push(out[i++])
+      else merged.push(live[j++])
+    }
+    this.tracks.set(id, merged)
     return out.length
   }
 

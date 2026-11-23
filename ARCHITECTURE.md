@@ -76,9 +76,11 @@ estimate map.
 
 ### 2.8 Seeder (`src/seed.js`) **(1.0.0)**
 On `start`, ask the server's Track API for every other vessel's track over the
-history window and put it in front of the TrackStore's live fixes
-(`TrackStore.seed`, which only takes fixes older than a vessel's first live one,
-so order holds), then run one analysis cycle immediately. No range filter, the
+history window and merge it with the TrackStore's live fixes by time
+(`TrackStore.seed`; a live fix wins over history within the thinning interval).
+Not cut at the first live fix: on subscribe the server replays cached values, and
+a position restored at server start (`signalk-questdb.restore`) can be hours older
+than the history. Then run one analysis cycle immediately. No range filter, the
 same as live tracking. Does not block `start`: runs async, waits up to 3 minutes
 for a tracks plugin that registers after us, then gives up quietly; the plugin
 status says whether history was seeded. The Track API takes Temporal values; the
